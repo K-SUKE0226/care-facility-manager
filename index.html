@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>介護施設管理シート</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>介護施設管理シート</h1>
+        
+        <!-- ページ切り替えタブ -->
+        <div class="page-tabs-section">
+            <div class="page-tabs">
+                <button onclick="switchPage('list')" id="listPageBtn" class="page-tab-btn active">
+                    📋 施設一覧
+                </button>
+                <button onclick="switchPage('add')" id="addPageBtn" class="page-tab-btn">
+                    ➕ 施設追加
+                </button>
+            </div>
+        </div>
+        
+        <!-- 施設一覧ページ -->
+        <div id="listPage" class="page-content">
+            <!-- 一括更新セクション -->
+            <div class="bulk-update-section">
+                <h2>🔄 一括情報更新</h2>
+                <div class="bulk-update-controls">
+                    <button onclick="bulkUpdateWebInfo()" class="bulk-update-btn">
+                        🌐 WEB情報一括更新（WEB情報のみ対象）
+                    </button>
+                    <span id="bulkUpdateStatus" class="bulk-update-status"></span>
+                </div>
+                <p class="bulk-update-note">
+                    ※ 信頼性レベルが「WEB情報」の施設のみが更新対象となります。電話確認済みの施設は対象外です。
+                </p>
+            </div>
+            
+            <!-- 患者プロファイル登録 -->
+            <div class="patient-profile-section">
+                <h2>👤 患者プロファイル（マッチング用）</h2>
+                <div class="profile-form">
+                    <div class="form-row">
+                        <label>患者名: <input type="text" id="patientName" placeholder="例: 田中太郎"></label>
+                        <label>年齢: <input type="number" id="patientAge" min="0" max="120" placeholder="例: 75"></label>
+                    </div>
+                    
+                    <div class="form-row">
+                        <label>要介護度: 
+                            <select id="patientCareLevel">
+                                <option value="">選択してください</option>
+                                <option value="要支援1">要支援1</option>
+                                <option value="要支援2">要支援2</option>
+                                <option value="要介護1">要介護1</option>
+                                <option value="要介護2">要介護2</option>
+                                <option value="要介護3">要介護3</option>
+                                <option value="要介護4">要介護4</option>
+                                <option value="要介護5">要介護5</option>
+                            </select>
+                        </label>
+                        
+                        <label>予算上限: <input type="text" id="patientBudget" placeholder="例: 20万円"></label>
+                    </div>
+                    
+                    <div class="form-row">
+                        <label>必要な医療ケア: 
+                            <textarea id="patientMedicalNeeds" placeholder="例: 胃ろう、たん吸引、認知症対応など"></textarea>
+                        </label>
+                    </div>
+                    
+                    <div class="form-row">
+                        <label>希望条件・その他: 
+                            <textarea id="patientPreferences" placeholder="例: 個室希望、リハビリ重視、家族面会しやすい立地など"></textarea>
+                        </label>
+                    </div>
+                    
+                    <button onclick="savePatientProfile()" class="profile-btn">プロファイル保存</button>
+                    <button onclick="clearPatientProfile()" class="profile-btn secondary">クリア</button>
+                </div>
+            </div>
+
+            <!-- 検索フィルター -->
+            <div class="search-section">
+                <h2>🔍 施設を検索</h2>
+                <div class="search-filters">
+                    <div class="filter-row">
+                        <label>エリア: 
+                            <select id="searchArea">
+                                <option value="">すべてのエリア</option>
+                                <optgroup label="札幌市">
+                                    <option value="中央区">札幌市中央区</option>
+                                    <option value="北区">札幌市北区</option>
+                                    <option value="東区">札幌市東区</option>
+                                    <option value="白石区">札幌市白石区</option>
+                                    <option value="豊平区">札幌市豊平区</option>
+                                    <option value="南区">札幌市南区</option>
+                                    <option value="西区">札幌市西区</option>
+                                    <option value="厚別区">札幌市厚別区</option>
+                                    <option value="手稲区">札幌市手稲区</option>
+                                    <option value="清田区">札幌市清田区</option>
+                                </optgroup>
+                                <optgroup label="札幌近郊">
+                                    <option value="石狩市">石狩市</option>
+                                    <option value="江別市">江別市</option>
+                                    <option value="北広島市">北広島市</option>
+                                    <option value="恵庭市">恵庭市</option>
+                                    <option value="千歳市">千歳市</option>
+                                    <option value="小樽市">小樽市</option>
+                                    <option value="岩見沢市">岩見沢市</option>
+                                    <option value="当別町">当別町</option>
+                                    <option value="新篠津村">新篠津村</option>
+                                </optgroup>
+                            </select>
+                        </label>
+                        
+                        <label>要介護度: 
+                            <select id="searchCareLevel">
+                                <option value="">すべて</option>
+                                <option value="要支援1">要支援1</option>
+                                <option value="要支援2">要支援2</option>
+                                <option value="要介護1">要介護1</option>
+                                <option value="要介護2">要介護2</option>
+                                <option value="要介護3">要介護3</option>
+                                <option value="要介護4">要介護4</option>
+                                <option value="要介護5">要介護5</option>
+                            </select>
+                        </label>
+                        
+                        <label>空き状況: 
+                            <select id="searchAvailability">
+                                <option value="">すべて</option>
+                                <option value="空きあり">空きあり</option>
+                                <option value="空き僅か">空き僅か</option>
+                                <option value="満室">満室</option>
+                                <option value="要確認">要確認</option>
+                            </select>
+                        </label>
+                    </div>
+                    
+                    <div class="filter-row">
+                        <label>口コミ評価: 
+                            <select id="searchRating">
+                                <option value="">すべて</option>
+                                <option value="4.0">★4.0以上</option>
+                                <option value="3.5">★3.5以上</option>
+                                <option value="3.0">★3.0以上</option>
+                            </select>
+                        </label>
+                        
+                        <label>並び順: 
+                            <select id="sortOrder">
+                                <option value="recommended">🎯 おすすめ順</option>
+                                <option value="reliability">🔒 信頼性順</option>
+                                <option value="rating">⭐ 評価順</option>
+                                <option value="name">📝 名前順</option>
+                                <option value="updated">🔄 更新順</option>
+                            </select>
+                        </label>
+                        
+                    </div>
+                    
+                    <div class="search-buttons">
+                        <button onclick="searchFacilities()" class="search-btn">🔍 検索</button>
+                        <button onclick="resetSearch()" class="reset-search-btn">🔄 リセット</button>
+                        <button onclick="showAllFacilities()" class="reset-btn">📋 すべて表示</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 自動更新設定パネル -->
+            <div class="auto-update-section">
+                <h2>⚙️ 自動更新設定</h2>
+                <div class="auto-update-controls">
+                    <label>
+                        <input type="checkbox" id="enableAutoUpdate"> 定期自動更新を有効にする
+                    </label>
+                    
+                    <label>更新間隔: 
+                        <select id="updateInterval">
+                            <option value="30">30分</option>
+                            <option value="60" selected>1時間</option>
+                            <option value="180">3時間</option>
+                            <option value="360">6時間</option>
+                            <option value="720">12時間</option>
+                            <option value="1440">24時間</option>
+                        </select>
+                    </label>
+                    
+                    <div id="autoUpdateStatus" class="update-status">
+                        自動更新: 無効
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 表示モード切替 -->
+            <div class="view-mode-section">
+                <h2>📋 施設情報表示</h2>
+                <div class="view-mode-controls">
+                    <button onclick="switchViewMode('cards')" id="cardViewBtn" class="view-mode-btn active">
+                        📋 詳細カード表示
+                    </button>
+                    <button onclick="switchViewMode('table')" id="tableViewBtn" class="view-mode-btn">
+                        📊 一覧表表示
+                    </button>
+                    <button onclick="exportToCSV()" class="export-btn">
+                        📥 CSV出力
+                    </button>
+                </div>
+            </div>
+
+            <!-- 詳細カード表示 -->
+            <div id="cardView" class="facilities-section">
+                <h3>登録済み施設詳細</h3>
+                <div id="facilitiesTable"></div>
+            </div>
+            
+            <!-- 一覧表表示 -->
+            <div id="tableView" class="facilities-table-section" style="display: none;">
+                <h3>施設一覧シート</h3>
+                <div class="table-container">
+                    <table id="facilitiesDataTable" class="facilities-data-table">
+                        <thead>
+                            <tr>
+                                <th>施設名</th>
+                                <th>エリア</th>
+                                <th>空き状況</th>
+                                <th>信頼性</th>
+                                <th>月額料金</th>
+                                <th>要介護度</th>
+                                <th>電話</th>
+                                <th>最終確認</th>
+                                <th>口コミ評価</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="facilitiesTableBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 施設追加ページ -->
+        <div id="addPage" class="page-content" style="display: none;">
+            <!-- 新しい施設を追加するフォーム -->
+        <div class="add-facility-section">
+            <h2>新しい施設を追加</h2>
+            <form id="facilityForm">
+                <div class="form-row">
+                    <label>施設名: <input type="text" id="facilityName" required></label>
+                    <label>住所: <input type="text" id="address" required></label>
+                </div>
+                
+                <div class="form-row">
+                    <label>エリア: 
+                        <select id="area" required>
+                            <option value="">選択してください</option>
+                            <optgroup label="札幌市">
+                                <option value="中央区">札幌市中央区</option>
+                                <option value="北区">札幌市北区</option>
+                                <option value="東区">札幌市東区</option>
+                                <option value="白石区">札幌市白石区</option>
+                                <option value="豊平区">札幌市豊平区</option>
+                                <option value="南区">札幌市南区</option>
+                                <option value="西区">札幌市西区</option>
+                                <option value="厚別区">札幌市厚別区</option>
+                                <option value="手稲区">札幌市手稲区</option>
+                                <option value="清田区">札幌市清田区</option>
+                            </optgroup>
+                            <optgroup label="札幌近郊">
+                                <option value="石狩市">石狩市</option>
+                                <option value="江別市">江別市</option>
+                                <option value="北広島市">北広島市</option>
+                                <option value="恵庭市">恵庭市</option>
+                                <option value="千歳市">千歳市</option>
+                                <option value="小樽市">小樽市</option>
+                                <option value="岩見沢市">岩見沢市</option>
+                                <option value="当別町">当別町</option>
+                                <option value="新篠津村">新篠津村</option>
+                            </optgroup>
+                        </select>
+                    </label>
+                    <label>詳細住所: <input type="text" id="detailAddress" placeholder="例: 〇〇1丁目2番3号"></label>
+                </div>
+                
+                <div class="form-row">
+                    <label>電話番号: <input type="tel" id="phone"></label>
+                    <label>ホームページURL: <input type="url" id="websiteUrl"></label>
+                </div>
+                
+                <div class="form-row">
+                    <label>受け入れ可能な要介護度: 
+                        <select id="careLevel" multiple>
+                            <option value="要支援1">要支援1</option>
+                            <option value="要支援2">要支援2</option>
+                            <option value="要介護1">要介護1</option>
+                            <option value="要介護2">要介護2</option>
+                            <option value="要介護3">要介護3</option>
+                            <option value="要介護4">要介護4</option>
+                            <option value="要介護5">要介護5</option>
+                        </select>
+                    </label>
+                    
+                    <label>月額利用料: 
+                        <input type="text" id="monthlyFee" placeholder="例: 15万円〜20万円">
+                    </label>
+                </div>
+                
+                <div class="form-row">
+                    <label>提供している医療ケア: 
+                        <textarea id="medicalCare" placeholder="例: 胃ろう、たん吸引、インスリン注射など"></textarea>
+                    </label>
+                </div>
+                
+                <div class="form-row">
+                    <label>施設の特徴: 
+                        <textarea id="features" placeholder="例: 24時間看護師常駐、リハビリ充実、個室完備など"></textarea>
+                    </label>
+                </div>
+                
+                <div class="form-row">
+                    <label>空き状況: 
+                        <select id="availability">
+                            <option value="空きあり">空きあり</option>
+                            <option value="空き僅か">空き僅か</option>
+                            <option value="満室">満室</option>
+                            <option value="要確認">要確認</option>
+                        </select>
+                    </label>
+                    
+                    <label>情報の信頼性: 
+                        <select id="reliabilityLevel">
+                            <option value="high">🟢 高（電話確認済み）</option>
+                            <option value="medium">🟡 中（WEB情報）</option>
+                            <option value="low">🔴 低（推測・要確認）</option>
+                        </select>
+                    </label>
+                </div>
+                
+                <div class="form-row">
+                    <label>最終確認日: 
+                        <input type="date" id="lastConfirmed">
+                    </label>
+                    
+                    <label>確認方法: 
+                        <select id="confirmationMethod">
+                            <option value="phone">📞 電話確認</option>
+                            <option value="web">🌐 WEB確認</option>
+                            <option value="visit">🏢 訪問確認</option>
+                            <option value="email">📧 メール確認</option>
+                            <option value="estimate">💭 推測</option>
+                        </select>
+                    </label>
+                </div>
+                
+                <div class="form-row">
+                    <label>特記事項: 
+                        <textarea id="notes" placeholder="確実な情報のみ記載（料金変更、医療対応変更など）"></textarea>
+                    </label>
+                </div>
+                
+                <div class="form-row">
+                    <label>口コミ情報: 
+                        <textarea id="reviews" placeholder="WEB上の口コミ・評判情報（自動取得されます）" readonly></textarea>
+                    </label>
+                </div>
+                
+                <div class="web-fetch-section">
+                    <h4>🌐 WEB情報自動取得</h4>
+                    <p>ホームページURLを入力して「WEB情報から取得」をクリックすると、空き状況や口コミを自動取得できます。</p>
+                    <div class="web-fetch-controls">
+                        <button type="button" onclick="fetchWebInfoForNewFacility()" class="web-fetch-btn">
+                            🌐 WEB情報から取得
+                        </button>
+                        <span id="webFetchStatus" class="web-fetch-status"></span>
+                    </div>
+                </div>
+                
+                <button type="submit">施設を追加</button>
+            </form>
+        </div>
+
+        
+        <!-- リアルタイム情報表示エリア（将来の拡張用） -->
+        <div id="realtimeInfo" class="realtime-info" style="display: none;">
+            <h3>リアルタイム情報</h3>
+            <div id="realtimeContent"></div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
