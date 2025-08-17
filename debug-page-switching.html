@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ページ切り替えデバッグ</title>
+</head>
+<body style="padding: 20px; font-family: Arial, sans-serif;">
+    <h1>🔍 ページ切り替え機能のデバッグ</h1>
+    
+    <div style="background-color: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <h2>手動テスト</h2>
+        <button onclick="testSwitchPageManual()" style="padding: 10px 20px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px;">
+            switchPageManual('bulk') を実行
+        </button>
+        <button onclick="testConsoleAccess()" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px;">
+            コンソール関数確認
+        </button>
+        <button onclick="testDirectBulkPageShow()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px;">
+            直接bulkPage表示
+        </button>
+    </div>
+    
+    <div style="background-color: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <h2>メインアプリとの違いチェック</h2>
+        <button onclick="checkMainAppDifferences()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px;">
+            メインアプリの状況を確認
+        </button>
+        <div id="differences" style="margin-top: 10px; font-family: monospace; font-size: 12px; background: #f8f9fa; padding: 10px; border-radius: 3px; max-height: 300px; overflow-y: auto;">
+            結果がここに表示されます...
+        </div>
+    </div>
+    
+    <div style="background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <h2>リアルタイム監視</h2>
+        <button onclick="startMonitoring()" style="padding: 10px 20px; background: #17a2b8; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px;">
+            監視開始
+        </button>
+        <button onclick="stopMonitoring()" style="padding: 10px 20px; background: #6c757d; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 5px;">
+            監視停止
+        </button>
+        <div id="monitoring" style="margin-top: 10px; font-family: monospace; font-size: 11px; background: #212529; color: #ffffff; padding: 10px; border-radius: 3px; max-height: 200px; overflow-y: auto;">
+            監視ログがここに表示されます...
+        </div>
+    </div>
+
+    <script>
+        let monitoringInterval = null;
+        
+        function addLog(containerId, message) {
+            const container = document.getElementById(containerId);
+            const timestamp = new Date().toLocaleTimeString();
+            container.innerHTML += `[${timestamp}] ${message}<br>`;
+            container.scrollTop = container.scrollHeight;
+            console.log(message);
+        }
+
+        function testSwitchPageManual() {
+            addLog('differences', '=== switchPageManual テスト開始 ===');
+            
+            // メインアプリのウィンドウを取得しようとする
+            try {
+                // 新しいウィンドウでメインアプリを開く
+                const mainApp = window.open('http://localhost:8000', 'mainApp');
+                
+                setTimeout(() => {
+                    try {
+                        // メインアプリのswitchPageManual関数を呼び出す
+                        if (mainApp.switchPageManual) {
+                            addLog('differences', 'switchPageManual関数が見つかりました');
+                            mainApp.switchPageManual('bulk');
+                            addLog('differences', 'switchPageManual("bulk")を実行しました');
+                        } else {
+                            addLog('differences', 'ERROR: switchPageManual関数が見つかりません');
+                        }
+                        
+                        // URL入力欄の状態確認
+                        const urlInput = mainApp.document.getElementById('urlInput');
+                        if (urlInput) {
+                            const style = mainApp.getComputedStyle(urlInput);
+                            const rect = urlInput.getBoundingClientRect();
+                            addLog('differences', `URL入力欄の状態: display=${style.display}, visibility=${style.visibility}`);
+                            addLog('differences', `URL入力欄の位置: x=${rect.left}, y=${rect.top}, w=${rect.width}, h=${rect.height}`);
+                        } else {
+                            addLog('differences', 'ERROR: URL入力欄が見つかりません');
+                        }
+                    } catch (e) {
+                        addLog('differences', `CORS/アクセスエラー: ${e.message}`);
+                        addLog('differences', 'メインアプリに直接F12でコンソールを開いて以下を実行してください:');
+                        addLog('differences', 'switchPageManual("bulk")');
+                    }
+                }, 2000);
+                
+            } catch (e) {
+                addLog('differences', `エラー: ${e.message}`);
+            }
+        }
+
+        function testConsoleAccess() {
+            addLog('differences', '=== コンソール関数確認 ===');
+            addLog('differences', 'メインアプリ(localhost:8000)のコンソールで以下を確認してください:');
+            addLog('differences', '1. typeof switchPageManual');
+            addLog('differences', '2. typeof switchPage');
+            addLog('differences', '3. document.getElementById("bulkPage")');
+            addLog('differences', '4. document.getElementById("urlInput")');
+            addLog('differences', '5. switchPageManual("bulk")');
+            addLog('differences', '6. document.getElementById("urlInput").getBoundingClientRect()');
+        }
+
+        function testDirectBulkPageShow() {
+            addLog('differences', '=== 直接表示テスト ===');
+            addLog('differences', 'メインアプリのコンソールで以下を実行してください:');
+            addLog('differences', '// すべてのページを非表示');
+            addLog('differences', 'document.querySelectorAll(".page-content").forEach(p => p.style.display = "none")');
+            addLog('differences', '// bulkPageを強制表示');
+            addLog('differences', 'document.getElementById("bulkPage").style.display = "block"');
+            addLog('differences', '// URL入力欄を強制表示');
+            addLog('differences', 'document.getElementById("urlInput").style.cssText = "display: block !important; position: fixed !important; top: 100px !important; left: 100px !important; z-index: 99999 !important; background: yellow !important; border: 5px solid red !important; width: 400px !important; height: 200px !important;"');
+        }
+
+        function checkMainAppDifferences() {
+            addLog('differences', '=== メインアプリとの違いチェック ===');
+            addLog('differences', '1. メインアプリを開いてください: http://localhost:8000');
+            addLog('differences', '2. F12でコンソールを開いてください');
+            addLog('differences', '3. 以下のコマンドを順番に実行して結果を報告してください:');
+            addLog('differences', '');
+            addLog('differences', 'console.log("Page loaded:", document.readyState)');
+            addLog('differences', 'console.log("BulkPage exists:", !!document.getElementById("bulkPage"))');
+            addLog('differences', 'console.log("UrlInput exists:", !!document.getElementById("urlInput"))');
+            addLog('differences', 'console.log("SwitchPageManual exists:", typeof switchPageManual)');
+            addLog('differences', 'console.log("Script.js loaded:", typeof switchPage)');
+            addLog('differences', '');
+            addLog('differences', '4. URL一括追加タブをクリックしてください');
+            addLog('differences', '5. 以下を実行してください:');
+            addLog('differences', 'const bulkPage = document.getElementById("bulkPage")');
+            addLog('differences', 'const urlInput = document.getElementById("urlInput")');
+            addLog('differences', 'console.log("BulkPage display:", getComputedStyle(bulkPage).display)');
+            addLog('differences', 'console.log("UrlInput display:", getComputedStyle(urlInput).display)');
+            addLog('differences', 'console.log("UrlInput rect:", urlInput.getBoundingClientRect())');
+        }
+
+        function startMonitoring() {
+            if (monitoringInterval) return;
+            
+            addLog('monitoring', '監視開始...');
+            monitoringInterval = setInterval(() => {
+                try {
+                    addLog('monitoring', `時刻: ${new Date().toLocaleTimeString()}`);
+                    addLog('monitoring', `アクティブなURL: ${window.location.href}`);
+                    
+                    // localhost:8000が開いているかチェック（間接的に）
+                    fetch('http://localhost:8000')
+                        .then(response => {
+                            addLog('monitoring', `localhost:8000 ステータス: ${response.status}`);
+                        })
+                        .catch(e => {
+                            addLog('monitoring', `localhost:8000 エラー: ${e.message}`);
+                        });
+                        
+                } catch (e) {
+                    addLog('monitoring', `監視エラー: ${e.message}`);
+                }
+            }, 5000);
+        }
+
+        function stopMonitoring() {
+            if (monitoringInterval) {
+                clearInterval(monitoringInterval);
+                monitoringInterval = null;
+                addLog('monitoring', '監視停止');
+            }
+        }
+        
+        // ページ読み込み時の初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('differences', 'デバッグページが読み込まれました');
+            addLog('differences', 'メインアプリとの通信テストを開始できます');
+        });
+    </script>
+</body>
+</html>

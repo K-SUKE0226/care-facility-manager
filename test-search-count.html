@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>検索結果件数テスト</title>
+</head>
+<body style="padding: 20px; font-family: Arial, sans-serif;">
+    <h1>検索結果件数表示テスト</h1>
+    
+    <div style="background-color: #edf2f7; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+        <h2>🔍 検索セクション</h2>
+        <p>検索フィルターがここにあります</p>
+        
+        <button onclick="testSearchCount()" style="background-color: #38a169; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 10px 5px;">
+            🔍 検索テスト
+        </button>
+        
+        <button onclick="showTestCount()" style="background-color: #3182ce; color: white; padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; margin: 10px 5px;">
+            📊 件数表示テスト
+        </button>
+        
+        <!-- 検索結果件数表示 -->
+        <div id="searchResultCount" style="background-color: #e6fffa; border-left: 4px solid #319795; padding: 12px 20px; margin: 20px 0 0 0; border-radius: 6px; font-weight: 600; color: #2c7a7b; display: none; font-size: 16px;">
+            <!-- 検索結果件数がここに表示される -->
+        </div>
+    </div>
+    
+    <div style="background-color: #f7fafc; padding: 15px; border-radius: 5px; margin: 10px 0;">
+        <strong>要素の状態:</strong>
+        <div id="elementStatus">チェック待ち...</div>
+    </div>
+    
+    <div style="background-color: #fff5f5; padding: 15px; border-radius: 5px; margin: 10px 0;">
+        <strong>コンソールログ:</strong>
+        <div id="logOutput" style="font-family: monospace; font-size: 12px; white-space: pre-wrap; max-height: 200px; overflow-y: auto;">コンソール出力がここに表示されます</div>
+    </div>
+
+    <script>
+        // コンソールログをページ内に表示する関数
+        function addLog(message) {
+            const logOutput = document.getElementById('logOutput');
+            const timestamp = new Date().toLocaleTimeString();
+            logOutput.textContent += `[${timestamp}] ${message}\n`;
+            logOutput.scrollTop = logOutput.scrollHeight;
+            console.log(message);
+        }
+
+        // 要素の状態をチェックする関数
+        function checkElementStatus() {
+            const countElement = document.getElementById('searchResultCount');
+            const statusElement = document.getElementById('elementStatus');
+            
+            if (countElement) {
+                const computedStyle = window.getComputedStyle(countElement);
+                statusElement.innerHTML = `
+                    ✅ 要素は存在します<br>
+                    display: ${computedStyle.display}<br>
+                    visibility: ${computedStyle.visibility}<br>
+                    innerHTML: "${countElement.innerHTML}"
+                `;
+                addLog('searchResultCount要素が見つかりました');
+            } else {
+                statusElement.innerHTML = '❌ searchResultCount要素が見つかりません';
+                addLog('searchResultCount要素が見つかりません');
+            }
+        }
+
+        // 検索結果件数を表示する関数
+        function showSearchResultCount(filteredCount, totalCount) {
+            const countElement = document.getElementById('searchResultCount');
+            
+            addLog(`showSearchResultCount called: ${filteredCount}/${totalCount}`);
+            
+            if (!countElement) {
+                addLog('ERROR: searchResultCount element not found');
+                return;
+            }
+            
+            const percentage = totalCount > 0 ? Math.round((filteredCount / totalCount) * 100) : 0;
+            
+            if (filteredCount === totalCount) {
+                countElement.innerHTML = `📋 <strong>全施設表示中: ${totalCount}件</strong>`;
+            } else {
+                countElement.innerHTML = `🔍 <strong>検索結果: ${filteredCount}件</strong> / 全${totalCount}件中 (${percentage}%)`;
+            }
+            
+            countElement.style.display = 'block';
+            countElement.style.visibility = 'visible';
+            addLog('Count display updated: ' + countElement.innerHTML);
+        }
+
+        // テスト関数
+        function testSearchCount() {
+            addLog('testSearchCount function called');
+            showSearchResultCount(3, 10);
+            checkElementStatus();
+        }
+        
+        function showTestCount() {
+            addLog('showTestCount function called');
+            showSearchResultCount(10, 10);
+            checkElementStatus();
+        }
+
+        // ページ読み込み時に要素状態をチェック
+        document.addEventListener('DOMContentLoaded', function() {
+            addLog('Page loaded, checking element status...');
+            checkElementStatus();
+        });
+    </script>
+</body>
+</html>

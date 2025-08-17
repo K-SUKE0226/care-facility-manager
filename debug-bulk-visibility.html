@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL入力表示問題デバッグ</title>
+</head>
+<body style="padding: 20px; font-family: Arial, sans-serif;">
+    <h1>🔍 URL入力表示問題の徹底デバッグ</h1>
+    
+    <div style="background-color: #f0f8ff; padding: 20px; border: 2px solid #4169e1; border-radius: 10px; margin: 20px 0;">
+        <h2>テスト1: 最もシンプルなURL入力欄</h2>
+        <textarea id="simpleUrlInput" style="width: 100%; height: 200px; border: 2px solid red;">これは最もシンプルなtextareaです。これが見えますか？</textarea>
+        <p><strong>結果:</strong> <span id="test1Result">確認中...</span></p>
+    </div>
+    
+    <div style="background-color: #f8f8ff; padding: 20px; border: 2px solid #8a2be2; border-radius: 10px; margin: 20px 0;">
+        <h2>テスト2: メインアプリと同じ構造</h2>
+        <div style="background-color: #f8fafc; border: 2px solid #3182ce; border-radius: 12px; padding: 25px;">
+            <h3>📝 URL一覧を入力</h3>
+            <div style="margin-bottom: 20px;">
+                <label for="structuredUrlInput" style="display: block; font-weight: 600; color: #2d3748; margin-bottom: 8px;">URLリスト:</label>
+                <textarea id="structuredUrlInput" rows="10" style="width: 100%; min-height: 200px; padding: 15px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-family: monospace;">これは構造化されたtextareaです。これが見えますか？</textarea>
+            </div>
+        </div>
+        <p><strong>結果:</strong> <span id="test2Result">確認中...</span></p>
+    </div>
+    
+    <div style="background-color: #fff8f0; padding: 20px; border: 2px solid #ff8c00; border-radius: 10px; margin: 20px 0;">
+        <h2>テスト3: ページ切り替え機能付き</h2>
+        <button onclick="showTestPage('page1')" style="margin: 5px; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 5px;">ページ1表示</button>
+        <button onclick="showTestPage('page2')" style="margin: 5px; padding: 10px; background: #2196f3; color: white; border: none; border-radius: 5px;">ページ2表示</button>
+        
+        <div id="page1" class="test-page" style="display: none; background: #e8f5e8; padding: 20px; margin: 10px 0; border-radius: 5px;">
+            <h3>ページ1</h3>
+            <textarea id="page1UrlInput" style="width: 100%; height: 150px; border: 2px solid green;">ページ1のtextarea - これが見えますか？</textarea>
+        </div>
+        
+        <div id="page2" class="test-page" style="display: none; background: #e8f0ff; padding: 20px; margin: 10px 0; border-radius: 5px;">
+            <h3>ページ2</h3>
+            <textarea id="page2UrlInput" style="width: 100%; height: 150px; border: 2px solid blue;">ページ2のtextarea - これが見えますか？</textarea>
+        </div>
+        <p><strong>結果:</strong> <span id="test3Result">確認中...</span></p>
+    </div>
+    
+    <div style="background-color: #fff; padding: 20px; border: 2px solid #000; border-radius: 10px; margin: 20px 0;">
+        <h2>デバッグ情報</h2>
+        <div id="debugInfo" style="font-family: monospace; font-size: 12px; background: #f5f5f5; padding: 15px; border-radius: 5px; max-height: 300px; overflow-y: auto;">
+            デバッグ情報がここに表示されます...
+        </div>
+    </div>
+
+    <script>
+        function addDebugLog(message) {
+            const debugInfo = document.getElementById('debugInfo');
+            const timestamp = new Date().toLocaleTimeString();
+            debugInfo.innerHTML += `[${timestamp}] ${message}<br>`;
+            debugInfo.scrollTop = debugInfo.scrollHeight;
+            console.log(message);
+        }
+
+        function checkElementVisibility(elementId, testName) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                const style = window.getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                
+                const isVisible = style.display !== 'none' && 
+                                style.visibility !== 'hidden' && 
+                                style.opacity !== '0' &&
+                                rect.width > 0 && 
+                                rect.height > 0;
+                
+                addDebugLog(`${testName}: Element ${elementId} - Visible: ${isVisible}`);
+                addDebugLog(`  - display: ${style.display}, visibility: ${style.visibility}, opacity: ${style.opacity}`);
+                addDebugLog(`  - dimensions: ${rect.width}x${rect.height} at (${rect.left}, ${rect.top})`);
+                
+                return isVisible;
+            } else {
+                addDebugLog(`${testName}: Element ${elementId} NOT FOUND`);
+                return false;
+            }
+        }
+
+        function showTestPage(pageId) {
+            addDebugLog(`Switching to ${pageId}`);
+            
+            // Hide all pages
+            document.querySelectorAll('.test-page').forEach(page => {
+                page.style.display = 'none';
+                addDebugLog(`Hid page: ${page.id}`);
+            });
+            
+            // Show selected page
+            const targetPage = document.getElementById(pageId);
+            if (targetPage) {
+                targetPage.style.display = 'block';
+                addDebugLog(`Showed page: ${pageId}`);
+                
+                // Check textarea in the page
+                setTimeout(() => {
+                    const textarea = targetPage.querySelector('textarea');
+                    if (textarea) {
+                        checkElementVisibility(textarea.id, 'Page Switch Test');
+                        document.getElementById('test3Result').textContent = 
+                            checkElementVisibility(textarea.id, 'Page Switch') ? '✅ 表示される' : '❌ 表示されない';
+                    }
+                }, 100);
+            }
+        }
+
+        // Run tests on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            addDebugLog('=== 表示テスト開始 ===');
+            
+            // Test 1: Simple textarea
+            setTimeout(() => {
+                const test1Visible = checkElementVisibility('simpleUrlInput', 'Test 1 (Simple)');
+                document.getElementById('test1Result').textContent = test1Visible ? '✅ 表示される' : '❌ 表示されない';
+            }, 100);
+            
+            // Test 2: Structured textarea
+            setTimeout(() => {
+                const test2Visible = checkElementVisibility('structuredUrlInput', 'Test 2 (Structured)');
+                document.getElementById('test2Result').textContent = test2Visible ? '✅ 表示される' : '❌ 表示されない';
+            }, 200);
+            
+            // Browser and environment info
+            setTimeout(() => {
+                addDebugLog(`Browser: ${navigator.userAgent}`);
+                addDebugLog(`Viewport: ${window.innerWidth}x${window.innerHeight}`);
+                addDebugLog(`Document ready state: ${document.readyState}`);
+            }, 300);
+        });
+    </script>
+</body>
+</html>

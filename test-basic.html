@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>基本テスト</title>
+</head>
+<body style="padding: 20px; font-family: Arial, sans-serif;">
+    <h1>JavaScript読み込みテスト</h1>
+    
+    <div style="background-color: #f7fafc; padding: 15px; border-radius: 5px; margin: 10px 0;">
+        <h3>開発者ツールの確認方法：</h3>
+        <ol>
+            <li><strong>Chrome/Edge:</strong> F12キー または 右クリック→「検証」</li>
+            <li><strong>Firefox:</strong> F12キー または 右クリック→「要素を調査」</li>
+            <li>開発者ツールが開いたら「Console」タブをクリック</li>
+        </ol>
+    </div>
+    
+    <button onclick="testBasic()" style="background-color: #3182ce; color: white; padding: 15px 30px; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin: 10px;">
+        🔍 基本テスト実行
+    </button>
+    
+    <div id="output" style="background-color: #e6fffa; padding: 15px; border-radius: 5px; margin: 10px 0; min-height: 100px;">
+        ここに結果が表示されます
+    </div>
+
+    <script>
+        console.log('=== 基本テスト JavaScript 読み込み完了 ===');
+        
+        function testBasic() {
+            console.log('testBasic function called');
+            document.getElementById('output').innerHTML = `
+                <h3>✅ JavaScript正常動作</h3>
+                <p>現在時刻: ${new Date().toLocaleString()}</p>
+                <p>コンソールにもログが出力されています。</p>
+            `;
+            
+            console.log('現在時刻:', new Date().toLocaleString());
+            console.log('DOM要素取得テスト:', document.getElementById('output') ? '成功' : '失敗');
+        }
+        
+        // ページ読み込み完了時
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOMContentLoaded イベント発火');
+            document.getElementById('output').innerHTML = '<p>📋 JavaScript読み込み完了 - ボタンをクリックしてテストしてください</p>';
+        });
+        
+        // エラーハンドリング
+        window.addEventListener('error', function(e) {
+            console.error('JavaScript エラー:', e.message, e.filename, e.lineno);
+        });
+    </script>
+</body>
+</html>

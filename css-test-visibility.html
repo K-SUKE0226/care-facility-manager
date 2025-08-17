@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CSS競合テスト</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 CSS競合テスト</h1>
+        
+        <div style="background-color: #f0f8ff; padding: 20px; border: 2px solid #4169e1; border-radius: 10px; margin: 20px 0;">
+            <h2>テスト1: style.css読み込み状態でのURL入力欄</h2>
+            <div id="bulkPage" class="page-content" style="display: block;">
+                <div style="background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <div style="background-color: #f8fafc; border: 2px solid #3182ce; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
+                        <h3 style="color: #2d3748; margin-bottom: 15px;">📝 URL一覧を入力</h3>
+                        <div style="margin-bottom: 20px;">
+                            <label for="urlInput" style="display: block; font-weight: 600; color: #2d3748; margin-bottom: 8px;">URLリスト:</label>
+                            <textarea id="urlInput" rows="10" style="width: 100%; min-height: 200px; padding: 15px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-family: monospace; line-height: 1.5; resize: vertical; display: block !important; visibility: visible !important; opacity: 1 !important;" placeholder="このtextareaが見えますか？">CSS読み込み状態でのテストです</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <p><strong>結果:</strong> <span id="test1Result">確認中...</span></p>
+        </div>
+        
+        <div style="background-color: #f8f8ff; padding: 20px; border: 2px solid #8a2be2; border-radius: 10px; margin: 20px 0;">
+            <h2>テスト2: CSSなしでのURL入力欄</h2>
+            <div class="no-css-test">
+                <textarea id="noCssUrlInput" style="width: 100%; height: 200px; border: 2px solid red; display: block; visibility: visible; opacity: 1;">CSSなし状態でのテストです</textarea>
+            </div>
+            <p><strong>結果:</strong> <span id="test2Result">確認中...</span></p>
+        </div>
+        
+        <div style="background-color: #fff; padding: 20px; border: 2px solid #000; border-radius: 10px; margin: 20px 0;">
+            <h2>CSS詳細チェック</h2>
+            <button onclick="checkCSSRules()" style="padding: 10px 20px; background: #3182ce; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0;">CSS適用状況を確認</button>
+            <div id="cssInfo" style="font-family: monospace; font-size: 12px; background: #f5f5f5; padding: 15px; border-radius: 5px; max-height: 400px; overflow-y: auto;">
+                CSS情報がここに表示されます...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function addCSSLog(message) {
+            const cssInfo = document.getElementById('cssInfo');
+            cssInfo.innerHTML += message + '<br>';
+            console.log(message);
+        }
+
+        function checkElementVisibility(elementId, testName) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                const style = window.getComputedStyle(element);
+                const rect = element.getBoundingClientRect();
+                
+                const isVisible = style.display !== 'none' && 
+                                style.visibility !== 'hidden' && 
+                                style.opacity !== '0' &&
+                                rect.width > 0 && 
+                                rect.height > 0;
+                
+                addCSSLog(`${testName}: Element ${elementId} - Visible: ${isVisible ? '✅' : '❌'}`);
+                addCSSLog(`  - display: ${style.display}`);
+                addCSSLog(`  - visibility: ${style.visibility}`);
+                addCSSLog(`  - opacity: ${style.opacity}`);
+                addCSSLog(`  - dimensions: ${rect.width}x${rect.height}`);
+                addCSSLog(`  - position: ${rect.left}, ${rect.top}`);
+                
+                return isVisible;
+            } else {
+                addCSSLog(`${testName}: Element ${elementId} NOT FOUND`);
+                return false;
+            }
+        }
+
+        function checkCSSRules() {
+            addCSSLog('=== CSS詳細チェック開始 ===');
+            
+            // URL入力欄の詳細CSS確認
+            const urlInput = document.getElementById('urlInput');
+            if (urlInput) {
+                const computedStyle = window.getComputedStyle(urlInput);
+                addCSSLog('--- urlInput の全CSSプロパティ ---');
+                
+                // 重要なプロパティをチェック
+                const importantProps = [
+                    'display', 'visibility', 'opacity', 'width', 'height', 
+                    'min-height', 'max-height', 'position', 'z-index',
+                    'transform', 'clip', 'clip-path', 'overflow'
+                ];
+                
+                importantProps.forEach(prop => {
+                    addCSSLog(`  ${prop}: ${computedStyle.getPropertyValue(prop)}`);
+                });
+                
+                // すべての適用されているCSSルールを取得
+                addCSSLog('--- 適用されているCSSルール ---');
+                try {
+                    const sheets = document.styleSheets;
+                    for (let i = 0; i < sheets.length; i++) {
+                        try {
+                            const rules = sheets[i].cssRules || sheets[i].rules;
+                            for (let j = 0; j < rules.length; j++) {
+                                const rule = rules[j];
+                                if (rule.selectorText && rule.selectorText.includes('urlInput')) {
+                                    addCSSLog(`  Rule: ${rule.selectorText} { ${rule.style.cssText} }`);
+                                }
+                                if (rule.selectorText && rule.selectorText.includes('textarea')) {
+                                    addCSSLog(`  Textarea Rule: ${rule.selectorText} { ${rule.style.cssText} }`);
+                                }
+                                if (rule.selectorText && rule.selectorText.includes('page-content')) {
+                                    addCSSLog(`  Page Rule: ${rule.selectorText} { ${rule.style.cssText} }`);
+                                }
+                            }
+                        } catch (e) {
+                            addCSSLog(`  Stylesheet ${i}: Access blocked (CORS)`);
+                        }
+                    }
+                } catch (e) {
+                    addCSSLog(`CSS Rules access error: ${e.message}`);
+                }
+            }
+            
+            addCSSLog('=== チェック完了 ===');
+        }
+
+        // ページ読み込み時の自動チェック
+        document.addEventListener('DOMContentLoaded', function() {
+            setTimeout(() => {
+                const test1Visible = checkElementVisibility('urlInput', 'CSS付きTest');
+                document.getElementById('test1Result').textContent = test1Visible ? '✅ 表示される' : '❌ 表示されない';
+                
+                const test2Visible = checkElementVisibility('noCssUrlInput', 'CSSなしTest');
+                document.getElementById('test2Result').textContent = test2Visible ? '✅ 表示される' : '❌ 表示されない';
+                
+                // 自動的に詳細チェック実行
+                checkCSSRules();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

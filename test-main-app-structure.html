@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>メインアプリ構造テスト</title>
+</head>
+<body style="padding: 20px; font-family: Arial, sans-serif;">
+    <h1>🔍 メインアプリと同じ構造での表示テスト</h1>
+    
+    <!-- ページ切り替えタブ（メインアプリと同じ） -->
+    <div class="page-tabs-section">
+        <div class="page-tabs">
+            <button onclick="switchPageTest('list')" id="listPageBtn" class="page-tab-btn active" style="margin: 5px; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 5px;">
+                📋 施設一覧
+            </button>
+            <button onclick="switchPageTest('bulk')" id="bulkPageBtn" class="page-tab-btn" style="margin: 5px; padding: 10px; background: #2196f3; color: white; border: none; border-radius: 5px;">
+                🔗 URL一括追加
+            </button>
+        </div>
+    </div>
+    
+    <!-- 施設一覧ページ -->
+    <div id="listPage" class="page-content" style="background: #e8f5e8; padding: 20px; margin: 10px 0; border-radius: 5px;">
+        <h2>施設一覧ページ</h2>
+        <p>これは施設一覧ページです</p>
+    </div>
+    
+    <!-- URL一括追加ページ（メインアプリと完全同一構造） -->
+    <div id="bulkPage" class="page-content" style="display: none;">
+        <div style="background-color: white; padding: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <h2 style="color: #2c5282; margin-bottom: 20px;">🔗 URLから一括施設追加</h2>
+            
+            <!-- URL入力セクション（メインアプリと完全同一） -->
+            <div style="background-color: #f8fafc; border: 2px solid #3182ce; border-radius: 12px; padding: 25px; margin-bottom: 30px;">
+                <h3 style="color: #2d3748; margin-bottom: 15px;">📝 URL一覧を入力</h3>
+                <div style="margin-bottom: 20px;">
+                    <label for="urlInput" style="display: block; font-weight: 600; color: #2d3748; margin-bottom: 8px;">URLリスト（1行に1つずつ入力）:</label>
+                    <textarea id="urlInput" rows="10" style="width: 100%; min-height: 200px; padding: 15px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 14px; font-family: monospace; line-height: 1.5; resize: vertical;" placeholder="例:
+https://example-facility1.jp/
+https://homes.co.jp/kaigo/sapporo/
+https://minnannokaigo.com/hokkaido/sapporo/
+https://sapporo.lg.jp/kaigo/shisetsu/list
+...">これは完全にメインアプリと同じ構造のtextareaです</textarea>
+                </div>
+                
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <button onclick="testBulkProcessing()" style="background: linear-gradient(135deg, #3182ce, #2c5282); color: white; padding: 15px 30px; border: none; border-radius: 8px; font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);" id="bulkProcessBtn">
+                        🚀 テスト処理開始
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div style="background-color: #fff; padding: 20px; border: 2px solid #000; border-radius: 10px; margin: 20px 0;">
+        <h2>状態確認</h2>
+        <div id="statusInfo" style="font-family: monospace; font-size: 12px; background: #f5f5f5; padding: 15px; border-radius: 5px;">
+            状態情報がここに表示されます...
+        </div>
+    </div>
+
+    <script>
+        function addStatusLog(message) {
+            const statusInfo = document.getElementById('statusInfo');
+            const timestamp = new Date().toLocaleTimeString();
+            statusInfo.innerHTML += `[${timestamp}] ${message}<br>`;
+            console.log(message);
+        }
+
+        function switchPageTest(pageType) {
+            addStatusLog(`=== switchPageTest called: ${pageType} ===`);
+            
+            const listPage = document.getElementById('listPage');
+            const bulkPage = document.getElementById('bulkPage');
+            const listBtn = document.getElementById('listPageBtn');
+            const bulkBtn = document.getElementById('bulkPageBtn');
+            
+            // すべてのページを非表示
+            if (listPage) {
+                listPage.style.display = 'none';
+                addStatusLog('List page hidden');
+            }
+            if (bulkPage) {
+                bulkPage.style.display = 'none';
+                addStatusLog('Bulk page hidden');
+            }
+            
+            // ボタンのactive状態をリセット
+            if (listBtn) listBtn.classList.remove('active');
+            if (bulkBtn) bulkBtn.classList.remove('active');
+            
+            // 指定されたページを表示
+            if (pageType === 'list') {
+                if (listPage) {
+                    listPage.style.display = 'block';
+                    addStatusLog('✅ List page shown');
+                }
+                if (listBtn) listBtn.classList.add('active');
+            } else if (pageType === 'bulk') {
+                if (bulkPage) {
+                    bulkPage.style.display = 'block';
+                    addStatusLog('✅ Bulk page shown');
+                    
+                    // URL入力欄の状態確認
+                    setTimeout(() => {
+                        const urlInput = document.getElementById('urlInput');
+                        if (urlInput) {
+                            const style = window.getComputedStyle(urlInput);
+                            const rect = urlInput.getBoundingClientRect();
+                            
+                            addStatusLog(`URL Input Element Details:`);
+                            addStatusLog(`  - Found: ${urlInput ? 'YES' : 'NO'}`);
+                            addStatusLog(`  - display: ${style.display}`);
+                            addStatusLog(`  - visibility: ${style.visibility}`);
+                            addStatusLog(`  - opacity: ${style.opacity}`);
+                            addStatusLog(`  - dimensions: ${rect.width}x${rect.height}`);
+                            addStatusLog(`  - position: ${rect.left}, ${rect.top}`);
+                            
+                            const isVisible = style.display !== 'none' && 
+                                            style.visibility !== 'hidden' && 
+                                            style.opacity !== '0' &&
+                                            rect.width > 0 && 
+                                            rect.height > 0;
+                            
+                            addStatusLog(`  - VISIBLE: ${isVisible ? '✅ YES' : '❌ NO'}`);
+                        } else {
+                            addStatusLog('❌ URL input element not found');
+                        }
+                    }, 100);
+                }
+                if (bulkBtn) bulkBtn.classList.add('active');
+            }
+            
+            addStatusLog(`=== switchPageTest completed ===`);
+        }
+
+        function testBulkProcessing() {
+            addStatusLog('🚀 Test bulk processing called');
+            const urlInput = document.getElementById('urlInput');
+            if (urlInput) {
+                addStatusLog(`URL input value: "${urlInput.value}"`);
+                alert('URL入力欄は正常に動作しています！');
+            } else {
+                addStatusLog('❌ URL input not found during processing');
+            }
+        }
+
+        // ページ読み込み時の初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            addStatusLog('=== Page loaded ===');
+            
+            // 初期状態確認
+            setTimeout(() => {
+                const listPage = document.getElementById('listPage');
+                const bulkPage = document.getElementById('bulkPage');
+                
+                if (listPage) {
+                    addStatusLog(`List page initial display: ${listPage.style.display || 'not set'}`);
+                }
+                if (bulkPage) {
+                    addStatusLog(`Bulk page initial display: ${bulkPage.style.display}`);
+                }
+            }, 100);
+        });
+    </script>
+</body>
+</html>

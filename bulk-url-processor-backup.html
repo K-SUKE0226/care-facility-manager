@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>URL一括処理ツール - 介護施設情報抽出</title>
+    <style>
+        body {
+            font-family: 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c5282;
+            text-align: center;
+            border-bottom: 3px solid #3182ce;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        .input-section {
+            background-color: #f8fafc;
+            border: 2px solid #3182ce;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        #urlInput {
+            width: 100%;
+            height: 200px;
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: monospace;
+            line-height: 1.5;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+        .btn {
+            background: linear-gradient(135deg, #3182ce, #2c5282);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 15px;
+            box-shadow: 0 4px 12px rgba(49, 130, 206, 0.3);
+        }
+        .btn:hover {
+            background: linear-gradient(135deg, #2c5282, #2a4a7a);
+        }
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .clear-btn {
+            background-color: #ed8936;
+            box-shadow: 0 4px 12px rgba(237, 137, 54, 0.3);
+        }
+        .download-btn {
+            background-color: #38a169;
+            box-shadow: 0 4px 12px rgba(56, 161, 105, 0.3);
+        }
+        .progress-section {
+            display: none;
+            background-color: #fffaf0;
+            border: 2px solid #ed8936;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #38a169, #48bb78);
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        .progress-text {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2d3748;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .log {
+            max-height: 200px;
+            overflow-y: auto;
+            background-color: #1a202c;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+        .results-section {
+            display: none;
+            background-color: #f0fff4;
+            border: 2px solid #38a169;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background-color: white;
+            border-radius: 8px;
+            flex: 1;
+        }
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3182ce;
+            display: block;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+        .info-note {
+            background-color: #e6fffa;
+            border-left: 4px solid #319795;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 施設URL抽出ツール</h1>
+        
+        <div class="info-note">
+            <strong>このツールについて:</strong><br>
+            介護施設運営会社の施設一覧ページから、個別施設のURLを自動抽出します。<br>
+            抽出したURLは、施設管理シートでの一括データ取得に使用できます。
+        </div>
+        
+        <div class="input-section">
+            <h3>🌐 施設一覧ページのURL</h3>
+            <p>施設一覧が掲載されているページのURLを入力してください:</p>
+            <textarea id="urlInput" placeholder="例:
+https://noah-garden.com/noah/search
+https://www.minnannokaigo.com/search/hokkaido/sapporo/
+https://kaigo.homes.co.jp/s/list/ad11=1/ct=5/area2=102/
+..."></textarea>
+            <div style="margin-top: 15px;">
+                <button onclick="startExtraction()" class="btn" id="extractBtn">
+                    🔍 URL抽出開始
+                </button>
+                <button onclick="clearInput()" class="clear-btn btn">
+                    🗑️ クリア
+                </button>
+            </div>
+        </div>
+        
+        <div id="progressSection" class="progress-section">
+            <h3>⚡ 処理状況</h3>
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+            </div>
+            <div id="progressText" class="progress-text">準備中...</div>
+            <div id="logContainer" class="log"></div>
+        </div>
+        
+        <div id="resultsSection" class="results-section">
+            <h3>📋 抽出結果</h3>
+            <div class="stats">
+                <div class="stat-item">
+                    <span id="totalUrls" class="stat-number">0</span>
+                    <span class="stat-label">抽出URL数</span>
+                </div>
+                <div class="stat-item">
+                    <span id="processedSites" class="stat-number">0</span>
+                    <span class="stat-label">処理サイト数</span>
+                </div>
+                <div class="stat-item">
+                    <span id="uniqueUrls" class="stat-number">0</span>
+                    <span class="stat-label">ユニークURL数</span>
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px;">
+                <button onclick="copyUrlsToClipboard()" class="download-btn btn" id="copyBtn">
+                    📋 URLをクリップボードにコピー
+                </button>
+                <button onclick="downloadUrlList()" class="btn">
+                    📥 URLリストをダウンロード
+                </button>
+                <button onclick="resetAll()" class="clear-btn btn">
+                    🔄 リセット
+                </button>
+            </div>
+            
+            <div class="url-list" id="urlList" style="max-height: 300px; overflow-y: auto; background-color: white; border: 2px solid #e2e8f0; border-radius: 8px; padding: 15px; margin: 15px 0;"></div>
+        </div>
+    </div>
+
+    <script>
+        let extractedUrls = [];
+        
+        // URL抽出開始
+        async function startExtraction() {
+            const urlInput = document.getElementById('urlInput').value.trim();
+            const extractBtn = document.getElementById('extractBtn');
+            
+            if (!urlInput) {
+                alert('URLを入力してください。');
+                return;
+            }
+            
+            const urls = urlInput.split('\\n')
+                .map(url => url.trim())
+                .filter(url => url.length > 0 && (url.startsWith('http://') || url.startsWith('https://')));
+            
+            if (urls.length === 0) {
+                alert('有効なURL（http://またはhttps://で始まる）を入力してください。');
+                return;
+            }
+            
+            // 初期化
+            extractedUrls = [];
+            extractBtn.disabled = true;
+            document.getElementById('progressSection').style.display = 'block';
+            document.getElementById('resultsSection').style.display = 'none';
+            
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            const logContainer = document.getElementById('logContainer');
+            
+            progressText.textContent = `処理開始: ${urls.length}件のURLを処理します...`;
+            logContainer.innerHTML = '';
+            
+            addLog('🚀 一括処理を開始しました');
+            addLog(`📋 処理対象: ${urls.length}件のURL`);
+            
+            try {
+                for (let i = 0; i < urls.length; i++) {
+                    const url = urls[i];
+                    const urlType = detectUrlType(url);
+                    
+                    addLog(`🔍 [${i + 1}/${urls.length}] ${urlType.name}: ${url}`);
+                    progressText.textContent = `処理中 (${i + 1}/${urls.length}): ${url}`;
+                    progressFill.style.width = `${((i + 1) / urls.length) * 100}%`;
+                    
+                    try {
+                        const extractedData = await extractInfoFromUrl(url, urlType);
+                        
+                        if (extractedData && extractedData.length > 0) {
+                            processedData = processedData.concat(extractedData);
+                            addLog(`✅ 成功: ${extractedData.length}件の施設情報を取得`);
+                        } else {
+                            addLog(`⚠️ 情報取得なし: 有効な施設情報が見つかりませんでした`);
+                        }
+                        
+                        await new Promise(resolve => setTimeout(resolve, 1500));
+                        
+                    } catch (error) {
+                        addLog(`❌ エラー: ${error.message}`);
+                    }
+                }
+                
+                progressText.textContent = `完了: ${processedData.length}件の施設情報を取得しました`;
+                addLog(`🎉 処理完了: 合計${processedData.length}件の施設情報を取得`);
+                
+                if (processedData.length > 0) {
+                    showResults();
+                } else {
+                    addLog('⚠️ 取得できた施設情報がありませんでした');
+                }
+                
+            } catch (error) {
+                progressText.textContent = '処理中にエラーが発生しました';
+                addLog(`💥 致命的エラー: ${error.message}`);
+            } finally {
+                processBtn.disabled = false;
+            }
+        }
+        
+        // URL種別判定
+        function detectUrlType(url) {
+            const urlLower = url.toLowerCase();
+            
+            if (urlLower.includes('homes.co.jp')) {
+                return { type: 'HOMES', name: 'ライフルホームズ' };
+            } else if (urlLower.includes('minnannokaigo.com')) {
+                return { type: 'MINNANO', name: 'みんなの介護' };
+            } else if (urlLower.includes('.lg.jp') || urlLower.includes('.city.') || urlLower.includes('.pref.')) {
+                return { type: 'GOVERNMENT', name: '自治体サイト' };
+            } else if (urlLower.includes('kaigo') || urlLower.includes('nursing') || urlLower.includes('care')) {
+                return { type: 'CARE_SITE', name: '介護関連サイト' };
+            } else {
+                return { type: 'INDIVIDUAL', name: '個別施設サイト' };
+            }
+        }
+        
+        // 実際のスクレイピングサーバーと連携
+        async function extractInfoFromUrl(url, urlType) {
+            try {
+                addLog(`🌐 ${url} にアクセス中...`);
+                
+                const response = await fetch('http://localhost:5000/api/scrape', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        urls: [url]
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`サーバーエラー: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.success && data.facilities) {
+                    addLog(`✅ ${data.facilities.length}件の施設情報を取得`);
+                    return data.facilities;
+                } else {
+                    throw new Error(data.error || '不明なエラー');
+                }
+                
+            } catch (error) {
+                addLog(`❌ ${url} の処理でエラー: ${error.message}`);
+                
+                // フォールバック: サーバーが利用できない場合はテストデータを返す
+                addLog(`🔄 テストデータで代替処理中...`);
+                return await fallbackExtractInfo(url, urlType);
+            }
+        }
+        
+        // フォールバック用のテストデータ生成
+        async function fallbackExtractInfo(url, urlType) {
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    const facilityCount = Math.floor(Math.random() * 3) + 1;
+                    const results = [];
+                    
+                    for (let i = 0; i < facilityCount; i++) {
+                        const sampleNames = [
+                            '札幌中央介護ホーム', '北区やまざくらホーム', '手稲みどりの風',
+                            '豊平グループホーム', '白石ケアセンター'
+                        ];
+                        
+                        const sampleAreas = ['中央区', '北区', '東区', '白石区', '豊平区'];
+                        const sampleAvailability = ['空きあり', '空き僅か', '満室', '要確認'];
+                        const sampleFees = ['12万円〜18万円', '10万円〜15万円', '15万円〜22万円'];
+                        
+                        results.push({
+                            name: sampleNames[Math.floor(Math.random() * sampleNames.length)] + (facilityCount > 1 ? ` ${i + 1}` : '') + ' [テスト]',
+                            address: `札幌市${sampleAreas[Math.floor(Math.random() * sampleAreas.length)]}○○${Math.floor(Math.random() * 30) + 1}丁目${Math.floor(Math.random() * 20) + 1}-${Math.floor(Math.random() * 30) + 1}`,
+                            area: sampleAreas[Math.floor(Math.random() * sampleAreas.length)],
+                            phone: `011-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
+                            websiteUrl: url,
+                            careLevel: '要介護1,要介護2,要介護3,要介護4,要介護5',
+                            monthlyFee: sampleFees[Math.floor(Math.random() * sampleFees.length)],
+                            medicalCare: '胃ろう、たん吸引、インスリン注射対応',
+                            features: '24時間看護師常駐、リハビリ充実',
+                            availability: sampleAvailability[Math.floor(Math.random() * sampleAvailability.length)],
+                            reliabilityLevel: 'medium',
+                            lastConfirmed: new Date().toISOString().split('T')[0],
+                            confirmationMethod: 'web',
+                            notes: `${urlType.name}から自動取得（テストモード）`,
+                            reviews: `[テストデータ ${new Date().toLocaleDateString('ja-JP')}] サーバー接続時の代替データです。`,
+                            sourceUrl: url,
+                            sourceType: urlType.name + '（テスト）'
+                        });
+                    }
+                    
+                    resolve(results);
+                }, 1000);
+            });
+        }
+        
+        // ログ追加
+        function addLog(message) {
+            const logContainer = document.getElementById('logContainer');
+            const timestamp = new Date().toLocaleTimeString('ja-JP');
+            const logEntry = document.createElement('div');
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+        
+        // 結果表示
+        function showResults() {
+            const totalCount = processedData.length;
+            const areaStats = {};
+            let availableCount = 0;
+            
+            processedData.forEach(facility => {
+                areaStats[facility.area] = (areaStats[facility.area] || 0) + 1;
+                if (facility.availability === '空きあり') {
+                    availableCount++;
+                }
+            });
+            
+            document.getElementById('totalCount').textContent = totalCount;
+            document.getElementById('areaCount').textContent = Object.keys(areaStats).length;
+            document.getElementById('availableCount').textContent = availableCount;
+            
+            document.getElementById('resultsSection').style.display = 'block';
+        }
+        
+        // CSVダウンロード（UTF-8版のみ）
+        function downloadCSV() {
+            if (processedData.length === 0) {
+                alert('ダウンロードするデータがありません。');
+                return;
+            }
+            
+            downloadUTF8CSV();
+        }
+        
+        function downloadUTF8CSV() {
+            const headers = [
+                '施設名', 'エリア', '住所', '電話番号', 'ホームページURL',
+                '空き状況', '信頼性レベル', '月額料金', '受入可能要介護度',
+                '医療ケア', '施設特徴', '特記事項', '口コミ情報',
+                '最終確認日', '確認方法', '取得元URL', '取得元サイト'
+            ];
+            
+            let csvContent = headers.join(',') + '\n';
+            
+            processedData.forEach(facility => {
+                const row = [
+                    escapeCSVField(facility.name),
+                    escapeCSVField(facility.area),
+                    escapeCSVField(facility.address),
+                    escapeCSVField(facility.phone),
+                    escapeCSVField(facility.websiteUrl),
+                    escapeCSVField(facility.availability),
+                    escapeCSVField(facility.reliabilityLevel),
+                    escapeCSVField(facility.monthlyFee),
+                    escapeCSVField(facility.careLevel),
+                    escapeCSVField(facility.medicalCare),
+                    escapeCSVField(facility.features),
+                    escapeCSVField(facility.notes),
+                    escapeCSVField(facility.reviews),
+                    escapeCSVField(facility.lastConfirmed),
+                    escapeCSVField(facility.confirmationMethod),
+                    escapeCSVField(facility.sourceUrl),
+                    escapeCSVField(facility.sourceType)
+                ];
+                csvContent += row.join(',') + '\n';
+            });
+            
+            // UTF-8 BOMを追加
+            const BOM = '\uFEFF';
+            const csvWithBOM = BOM + csvContent;
+            
+            const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' });
+            downloadFile(blob, `介護施設一括取得_${new Date().toISOString().split('T')[0]}.csv`);
+            
+            alert('CSVファイルをダウンロードしました！\\n\\nUTF-8形式で生成されています。\\nインポート機能で使用してください。');
+        }
+        
+        function escapeCSVField(field) {
+            if (field === null || field === undefined) {
+                return '""';
+            }
+            let str = String(field);
+            // ダブルクォートをエスケープ
+            str = str.replace(/"/g, '""');
+            // カンマ、改行、ダブルクォートが含まれる場合はクォートで囲む
+            if (str.includes(',') || str.includes('\n') || str.includes('"')) {
+                str = `"${str}"`;
+            } else {
+                str = `"${str}"`;
+            }
+            return str;
+        }
+        
+        function downloadFile(blob, filename) {
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', filename);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+        
+        // 入力クリア
+        function clearInput() {
+            document.getElementById('urlInput').value = '';
+        }
+        
+        // 全リセット
+        function resetAll() {
+            clearInput();
+            processedData = [];
+            document.getElementById('progressSection').style.display = 'none';
+            document.getElementById('resultsSection').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

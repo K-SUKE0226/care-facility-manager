@@ -1,6 +1,10 @@
 // 施設データを保存する配列（ブラウザのローカルストレージに保存）
 let facilities = [];
 
+// JavaScript読み込み確認
+console.log('=== script.js ファイル読み込み開始 ===');
+console.log('現在時刻:', new Date().toLocaleString());
+
 // リアルタイム情報のキャッシュ（メモリ内保存）
 let realtimeCache = {};
 
@@ -12,7 +16,11 @@ let autoUpdateTimer = null;
 
 // ページ読み込み時に実行される関数
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('Page loading started...');
+    
     loadFacilities();
+    console.log('Facilities loaded:', facilities.length);
+    
     loadPatientProfile();
     setupAutoUpdate();
     setupEventListeners();
@@ -23,6 +31,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // 初期表示（おすすめ順）
     const facilitiesWithScores = calculateRecommendationScores([...facilities]);
     const sortedFacilities = sortFacilities(facilitiesWithScores, 'recommended');
+    
+    console.log('Initial display - facilities count:', sortedFacilities.length);
+    
+    // 初期表示時に件数を表示
+    showSearchResultCount(sortedFacilities.length, facilities.length);
+    
     displayFacilities(sortedFacilities);
 });
 
@@ -31,25 +45,75 @@ function setupEventListeners() {
     // フォーム送信時の処理
     document.getElementById('facilityForm').addEventListener('submit', function(e) {
         e.preventDefault(); // ページのリロードを防ぐ
-        addFacility();
+        
+        // 編集モードかどうかを確認
+        if (window.editingFacilityId) {
+            updateFacility();
+        } else {
+            addFacility();
+        }
     });
     
-    // 検索フィルターが変更されたときの処理
-    document.getElementById('searchArea').addEventListener('change', searchFacilities);
-    document.getElementById('searchCareLevel').addEventListener('change', searchFacilities);
-    document.getElementById('searchAvailability').addEventListener('change', searchFacilities);
-    document.getElementById('searchRating').addEventListener('change', searchFacilities);
-    document.getElementById('sortOrder').addEventListener('change', searchFacilities);
+    // 検索フィルターが変更されたときの処理（無効化 - 検索ボタンでのみ実行）
+    // document.getElementById('searchArea').addEventListener('change', searchFacilities);
+    // document.getElementById('searchCareLevel').addEventListener('change', searchFacilities);
+    // document.getElementById('searchAvailability').addEventListener('change', searchFacilities);
+    // document.getElementById('searchRating').addEventListener('change', searchFacilities);
+    // document.getElementById('sortOrder').addEventListener('change', searchFacilities);
+    console.log('Auto-search on dropdown change disabled - search only on button click');
+    
+    // CSVインポートボタンのイベントリスナーを追加
+    const importBtn = document.querySelector('.import-btn');
+    if (importBtn) {
+        importBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('CSV Import button clicked');
+            showImportDialog();
+        });
+        console.log('CSV Import button event listener added');
+    } else {
+        console.error('CSV Import button not found');
+    }
 }
 
 // 新しい施設を追加する関数
 function addFacility() {
     // フォームから値を取得
     const name = document.getElementById('facilityName').value.trim();
+    const facilityType = document.getElementById('facilityType').value;
     const address = document.getElementById('address').value.trim();
     const phone = document.getElementById('phone').value.trim();
     const websiteUrl = document.getElementById('websiteUrl').value.trim();
-    const careLevel = Array.from(document.getElementById('careLevel').selectedOptions).map(option => option.value);
+    // 要介護度チェックボックスから値を取得
+    const careLevel = [];
+    const careLevelCheckboxes = [
+        'careSupport1', 'careSupport2', 'careLevel1', 'careLevel2', 
+        'careLevel3', 'careLevel4', 'careLevel5'
+    ];
+    careLevelCheckboxes.forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox && checkbox.checked) {
+            careLevel.push(checkbox.value);
+        }
+    });
+    const services = [
+        document.getElementById('services1').value,
+        document.getElementById('services2').value,
+        document.getElementById('services3').value
+    ].filter(service => service !== '');
+    
+    // チェックボックス項目を取得
+    const additionalOptions = [];
+    const checkboxes = [
+        'nurseAvailable', 'supportRequired', 'independent', 'publicAssistance',
+        'noFamily', 'endOfLife', 'coupleRoom', 'selfCooking', 'twoMeals', 'kitchen'
+    ];
+    checkboxes.forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox && checkbox.checked) {
+            additionalOptions.push(checkbox.value);
+        }
+    });
     const monthlyFee = document.getElementById('monthlyFee').value.trim();
     const medicalCare = document.getElementById('medicalCare').value.trim();
     const features = document.getElementById('features').value.trim();
@@ -61,10 +125,11 @@ function addFacility() {
     const reliabilityLevel = document.getElementById('reliabilityLevel').value;
     const lastConfirmed = document.getElementById('lastConfirmed').value;
     const confirmationMethod = document.getElementById('confirmationMethod').value;
+    const isHidden = document.getElementById('isHidden').checked;
     
     // 必須項目のチェック
-    if (!name || !address) {
-        showMessage('施設名と住所は必須項目です。', 'error');
+    if (!name || !address || !facilityType) {
+        showMessage('施設名、種類、住所は必須項目です。', 'error');
         return;
     }
     
@@ -72,10 +137,13 @@ function addFacility() {
     const newFacility = {
         id: Date.now(), // 簡易的なID生成（現在時刻を使用）
         name: name,
+        facilityType: facilityType,
         address: address,
         phone: phone,
         websiteUrl: websiteUrl,
         careLevel: careLevel,
+        services: services,
+        additionalOptions: additionalOptions,
         monthlyFee: monthlyFee,
         medicalCare: medicalCare,
         features: features,
@@ -87,6 +155,7 @@ function addFacility() {
         reliabilityLevel: reliabilityLevel,
         lastConfirmed: lastConfirmed,
         confirmationMethod: confirmationMethod,
+        isHidden: isHidden, // 非表示フラグ
         createdAt: new Date().toISOString(), // 作成日時を記録
         realtimeInfo: null, // リアルタイム情報
         lastUpdated: null   // 最終更新時刻
@@ -111,9 +180,17 @@ function addFacility() {
 // 施設一覧を画面に表示する関数
 function displayFacilities(filteredFacilities = null) {
     const container = document.getElementById('facilitiesTable');
-    const facilitiesToShow = filteredFacilities || facilities;
+    // 非表示施設を除外
+    const visibleFacilities = (filteredFacilities || facilities).filter(facility => !facility.isHidden);
+    const facilitiesToShow = visibleFacilities;
+    
+    console.log('displayFacilities called:');
+    console.log('  facilities.length:', facilities.length);
+    console.log('  facilitiesToShow.length:', facilitiesToShow.length);
+    console.log('  first facility:', facilitiesToShow[0]);
     
     if (facilitiesToShow.length === 0) {
+        console.log('No facilities to show, displaying empty message');
         container.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">登録された施設はありません。</p>';
         return;
     }
@@ -125,7 +202,8 @@ function displayFacilities(filteredFacilities = null) {
             <div class="facility-card">
                 <div class="facility-header">
                     <div>
-                        <div class="facility-name">${escapeHtml(facility.name)}
+                        <div class="facility-name">
+                            <span onclick="navigateToFacilitySheet(${facility.id})" style="cursor: pointer; color: #3182ce; text-decoration: underline;">${escapeHtml(facility.name)}</span>
                             ${facility.recommendationScore ? `<span class="recommended-badge">🎆 おすすめ</span><span class="match-score">マッチ度: ${Math.round(facility.recommendationScore)}%</span>` : ''}
                         </div>
                         ${facility.realtimeInfo && facility.realtimeInfo.averageRating ? `<span class="rating-display">★${facility.realtimeInfo.averageRating}/5.0 (${facility.realtimeInfo.reviewCount}件)</span>` : '<span class="no-rating">評価未取得</span>'}
@@ -139,6 +217,11 @@ function displayFacilities(filteredFacilities = null) {
                 
                 <div class="facility-info">
                     <div class="info-group">
+                        <div class="info-label">種類</div>
+                        <div class="info-value">${escapeHtml(facility.facilityType || '未設定')}</div>
+                    </div>
+                    
+                    <div class="info-group">
                         <div class="info-label">住所</div>
                         <div class="info-value">${escapeHtml(facility.address)}</div>
                     </div>
@@ -146,6 +229,26 @@ function displayFacilities(filteredFacilities = null) {
                     <div class="info-group">
                         <div class="info-label">エリア</div>
                         <div class="info-value">${escapeHtml(facility.area || '未設定')}</div>
+                    </div>
+                    
+                    <div class="info-group">
+                        <div class="info-label">提供サービス</div>
+                        <div class="info-value">${facility.services && facility.services.length > 0 ? facility.services.join(', ') : '未設定'}</div>
+                    </div>
+                    
+                    <div class="info-group">
+                        <div class="info-label">追加オプション</div>
+                        <div class="info-value">
+                            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; font-size: 14px;">
+                                ${['看護師', '要支援', '自立', '生保', '身寄り', '看取り', '夫婦部屋', '自炊', '2食可', 'キッチン'].map(option => {
+                                    const isChecked = facility.additionalOptions && facility.additionalOptions.includes(option);
+                                    return `<span style="display: flex; align-items: center; gap: 3px;">
+                                        <span style="font-size: 16px;">${isChecked ? '☑' : '☐'}</span>
+                                        ${option}
+                                    </span>`;
+                                }).join('')}
+                            </div>
+                        </div>
                     </div>
                     
                     <div class="info-group">
@@ -199,7 +302,6 @@ function displayFacilities(filteredFacilities = null) {
                 ${generateRealtimeSection(facility)}
                 
                 <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
-                    <button class="delete-btn" onclick="deleteFacility(${facility.id})">削除</button>
                     <button onclick="fetchRealtimeInfo(${facility.id})" style="background-color: #3182ce; color: white; padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">🔄 リアルタイム情報取得</button>
                     ${facility.realtimeInfo ? `
                         <button onclick="applyWebInfoToSheet(${facility.id})" style="background-color: #38a169; color: white; padding: 8px 16px; border: none; border-radius: 5px; cursor: pointer; font-size: 14px;">🌐 WEB情報から取得</button>
@@ -210,23 +312,41 @@ function displayFacilities(filteredFacilities = null) {
     });
     
     container.innerHTML = html;
+    console.log('HTML generated, length:', html.length);
+}
+
+// デバッグ用関数
+function debugFacilities() {
+    console.log('=== Facilities Debug ===');
+    console.log('Total facilities:', facilities.length);
+    facilities.forEach((f, i) => {
+        console.log(`${i}: ${f.name} (${f.area})`);
+    });
+    console.log('===================');
 }
 
 // 札幌特化の高度な検索機能（シンプル化）
 function searchFacilities() {
+    console.log('searchFacilities function called');
+    
     const areaFilter = document.getElementById('searchArea').value;
     const careLevelFilter = document.getElementById('searchCareLevel').value;
     const availabilityFilter = document.getElementById('searchAvailability').value;
     const ratingFilter = document.getElementById('searchRating').value;
     const sortOrder = document.getElementById('sortOrder').value;
     
-    let filtered = [...facilities];
+    console.log('Search filters:', { areaFilter, careLevelFilter, availabilityFilter, ratingFilter, sortOrder });
+    console.log('Total facilities:', facilities.length);
+    
+    // 非表示施設を除外してから検索
+    let filtered = facilities.filter(facility => !facility.isHidden);
     
     // エリアでフィルター（札幌特化）
     if (areaFilter) {
         filtered = filtered.filter(facility => 
             facility.area === areaFilter
         );
+        console.log('After area filter:', filtered.length);
     }
     
     // 要介護度でフィルター
@@ -234,6 +354,7 @@ function searchFacilities() {
         filtered = filtered.filter(facility => 
             facility.careLevel.includes(careLevelFilter)
         );
+        console.log('After care level filter:', filtered.length);
     }
     
     // 空き状況でフィルター（シンプル化）
@@ -241,6 +362,7 @@ function searchFacilities() {
         filtered = filtered.filter(facility => 
             facility.availability === availabilityFilter
         );
+        console.log('After availability filter:', filtered.length);
     }
     
     // 評価でフィルター
@@ -250,6 +372,7 @@ function searchFacilities() {
             facility.realtimeInfo && 
             facility.realtimeInfo.averageRating >= minRating
         );
+        console.log('After rating filter:', filtered.length);
     }
     
     // おすすめスコアを計算
@@ -258,7 +381,38 @@ function searchFacilities() {
     // ソート
     filtered = sortFacilities(filtered, sortOrder);
     
+    console.log('Final filtered count:', filtered.length);
+    
+    // 検索結果件数を表示（非表示施設を除外した総数を使用）
+    const visibleTotalCount = facilities.filter(facility => !facility.isHidden).length;
+    showSearchResultCount(filtered.length, visibleTotalCount);
+    
     displayFacilities(filtered);
+}
+
+// 検索結果件数表示
+function showSearchResultCount(filteredCount, totalCount) {
+    const countElement = document.getElementById('searchResultCount');
+    
+    console.log(`showSearchResultCount called: ${filteredCount}/${totalCount}`);
+    
+    if (!countElement) {
+        console.error('searchResultCount element not found');
+        return;
+    }
+    
+    // 検索結果件数を常に表示（テスト用）
+    const percentage = totalCount > 0 ? Math.round((filteredCount / totalCount) * 100) : 0;
+    
+    if (filteredCount === totalCount) {
+        countElement.innerHTML = `📋 <strong>全施設表示中: ${totalCount}件</strong>`;
+    } else {
+        countElement.innerHTML = `🔍 <strong>検索結果: ${filteredCount}件</strong> / 全${totalCount}件中 (${percentage}%)`;
+    }
+    
+    countElement.style.display = 'block';
+    countElement.style.visibility = 'visible';
+    console.log('Count display updated:', countElement.innerHTML);
 }
 
 // すべての施設を表示
@@ -271,6 +425,10 @@ function showAllFacilities() {
     
     const facilitiesWithScores = calculateRecommendationScores([...facilities]);
     const sortedFacilities = sortFacilities(facilitiesWithScores, 'recommended');
+    
+    // 全件表示時は件数表示を隠す
+    showSearchResultCount(sortedFacilities.length, facilities.length);
+    
     displayFacilities(sortedFacilities);
 }
 
@@ -286,14 +444,18 @@ function deleteFacility(facilityId) {
 
 // ローカルストレージに施設データを保存
 function saveFacilities() {
-    localStorage.setItem('careFacilities', JSON.stringify(facilities));
+    localStorage.setItem('facilities', JSON.stringify(facilities));
 }
 
 // ローカルストレージから施設データを読み込み
 function loadFacilities() {
-    const savedFacilities = localStorage.getItem('careFacilities');
+    const savedFacilities = localStorage.getItem('facilities');
     if (savedFacilities) {
         facilities = JSON.parse(savedFacilities);
+        console.log('ローカルストレージから読み込み:', facilities.length, '件');
+    } else {
+        console.log('ローカルストレージに施設データが見つかりません');
+        facilities = [];
     }
 }
 
@@ -927,6 +1089,9 @@ function updateTableView() {
     const tbody = document.getElementById('facilitiesTableBody');
     const currentFacilities = getCurrentFilteredFacilities();
     
+    // テーブル表示時も検索結果件数を表示
+    showSearchResultCount(currentFacilities.length, facilities.length);
+    
     if (currentFacilities.length === 0) {
         tbody.innerHTML = '<tr><td colspan="10" style="text-align: center; padding: 40px; color: #666;">施設が登録されていません。</td></tr>';
         return;
@@ -1332,19 +1497,29 @@ function updateAutoUpdateStatus() {
 function switchPage(pageType) {
     const listPage = document.getElementById('listPage');
     const addPage = document.getElementById('addPage');
+    const bulkPage = document.getElementById('bulkPage');
     const listBtn = document.getElementById('listPageBtn');
     const addBtn = document.getElementById('addPageBtn');
+    const bulkBtn = document.getElementById('bulkPageBtn');
     
+    // すべてのページを非表示にして、すべてのボタンから active クラスを削除
+    listPage.style.display = 'none';
+    addPage.style.display = 'none';
+    bulkPage.style.display = 'none';
+    listBtn.classList.remove('active');
+    addBtn.classList.remove('active');
+    bulkBtn.classList.remove('active');
+    
+    // 指定されたページを表示して、対応するボタンを active にする
     if (pageType === 'list') {
         listPage.style.display = 'block';
-        addPage.style.display = 'none';
         listBtn.classList.add('active');
-        addBtn.classList.remove('active');
     } else if (pageType === 'add') {
-        listPage.style.display = 'none';
         addPage.style.display = 'block';
-        listBtn.classList.remove('active');
         addBtn.classList.add('active');
+    } else if (pageType === 'bulk') {
+        bulkPage.style.display = 'block';
+        bulkBtn.classList.add('active');
     }
 }
 
@@ -1416,6 +1591,11 @@ async function bulkUpdateWebInfo() {
         // 画面を更新
         displayFacilities();
         
+        // 最終更新日時を保存
+        const lastUpdateTime = new Date().toLocaleString('ja-JP');
+        localStorage.setItem('lastBulkUpdateTime', lastUpdateTime);
+        updateLastBulkUpdateDisplay();
+        
         // 成功メッセージ
         statusEl.textContent = `✅ 完了 (${updatedCount}件更新)`;
         statusEl.className = 'bulk-update-status success';
@@ -1449,17 +1629,1461 @@ function resetSearch() {
     // 表示を更新
     const facilitiesWithScores = calculateRecommendationScores([...facilities]);
     const sortedFacilities = sortFacilities(facilitiesWithScores, 'recommended');
+    
+    // リセット時は件数表示を隠す
+    showSearchResultCount(sortedFacilities.length, facilities.length);
+    
     displayFacilities(sortedFacilities);
     
     showMessage('検索フィルターをリセットしました。', 'success');
 }
 
-// デバッグ用: サンプルデータ追加ボタン（開発時のみ使用）
-// 本番では削除してください
-if (localStorage.getItem('careFacilities') === null) {
-    setTimeout(() => {
-        if (confirm('サンプルデータを追加しますか？（デモ用）')) {
-            addSampleData();
-        }
-    }, 1000);
+// URL一括処理関連の変数
+let bulkProcessResults = [];
+let currentProcessingIndex = 0;
+
+// URL入力クリア機能
+function clearUrlInput() {
+    document.getElementById('urlInput').value = '';
+    
+    // 進捗・結果セクションを非表示
+    document.getElementById('bulkProgressSection').style.display = 'none';
+    document.getElementById('bulkResultsSection').style.display = 'none';
+    
+    // 結果データをクリア
+    bulkProcessResults = [];
+    currentProcessingIndex = 0;
+    
+    showMessage('URL入力がクリアされました。', 'success');
 }
+
+// URL判定機能
+function detectUrlType(url) {
+    const urlLower = url.toLowerCase();
+    
+    // 主要な介護情報サイトを判定
+    if (urlLower.includes('homes.co.jp')) {
+        return { type: 'HOMES', name: 'ライフルホームズ' };
+    } else if (urlLower.includes('minnannokaigo.com')) {
+        return { type: 'MINNANO', name: 'みんなの介護' };
+    } else if (urlLower.includes('.lg.jp') || urlLower.includes('.city.') || urlLower.includes('.pref.')) {
+        return { type: 'GOVERNMENT', name: '自治体サイト' };
+    } else if (urlLower.includes('kaigo') || urlLower.includes('nursing') || urlLower.includes('care')) {
+        return { type: 'CARE_SITE', name: '介護関連サイト' };
+    } else {
+        return { type: 'INDIVIDUAL', name: '個別施設サイト' };
+    }
+}
+
+// URL一括処理開始
+async function startBulkProcessing() {
+    const urlInput = document.getElementById('urlInput').value.trim();
+    const processBtn = document.getElementById('bulkProcessBtn');
+    
+    if (!urlInput) {
+        showMessage('URLを入力してください。', 'error');
+        return;
+    }
+    
+    // URLリストを解析
+    const urls = urlInput.split('\n')
+        .map(url => url.trim())
+        .filter(url => url.length > 0 && (url.startsWith('http://') || url.startsWith('https://')));
+    
+    if (urls.length === 0) {
+        showMessage('有効なURL（http://またはhttps://で始まる）を入力してください。', 'error');
+        return;
+    }
+    
+    // 初期化
+    bulkProcessResults = [];
+    currentProcessingIndex = 0;
+    
+    // UI更新
+    processBtn.disabled = true;
+    document.getElementById('bulkProgressSection').style.display = 'block';
+    document.getElementById('bulkResultsSection').style.display = 'none';
+    
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    const processingLog = document.getElementById('processingLog');
+    
+    progressText.textContent = `処理開始: ${urls.length}件のURLを処理します...`;
+    processingLog.innerHTML = '';
+    
+    addLogEntry('🚀 一括処理を開始しました', 'processing');
+    addLogEntry(`📋 処理対象: ${urls.length}件のURL`, 'processing');
+    
+    try {
+        // 各URLを順次処理
+        for (let i = 0; i < urls.length; i++) {
+            currentProcessingIndex = i;
+            const url = urls[i];
+            const urlType = detectUrlType(url);
+            
+            addLogEntry(`🔍 [${i + 1}/${urls.length}] ${urlType.name}: ${url}`, 'processing');
+            progressText.textContent = `処理中 (${i + 1}/${urls.length}): ${url}`;
+            progressBar.style.width = `${((i + 1) / urls.length) * 100}%`;
+            
+            try {
+                // URL情報を抽出（シミュレーション）
+                const extractedData = await extractInfoFromUrl(url, urlType);
+                
+                if (extractedData && extractedData.length > 0) {
+                    bulkProcessResults = bulkProcessResults.concat(extractedData);
+                    addLogEntry(`✅ 成功: ${extractedData.length}件の施設情報を取得`, 'success');
+                } else {
+                    addLogEntry(`⚠️ 情報取得なし: 有効な施設情報が見つかりませんでした`, 'error');
+                }
+                
+                // 処理間隔を空ける
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+            } catch (error) {
+                console.error(`URL処理エラー (${url}):`, error);
+                addLogEntry(`❌ エラー: ${error.message}`, 'error');
+            }
+        }
+        
+        // 処理完了
+        progressText.textContent = `完了: ${bulkProcessResults.length}件の施設情報を取得しました`;
+        addLogEntry(`🎉 処理完了: 合計${bulkProcessResults.length}件の施設情報を取得`, 'success');
+        
+        // 結果表示
+        if (bulkProcessResults.length > 0) {
+            displayBulkResults();
+        } else {
+            addLogEntry('⚠️ 取得できた施設情報がありませんでした', 'error');
+        }
+        
+    } catch (error) {
+        console.error('一括処理エラー:', error);
+        progressText.textContent = '処理中にエラーが発生しました';
+        addLogEntry(`💥 致命的エラー: ${error.message}`, 'error');
+    } finally {
+        processBtn.disabled = false;
+    }
+}
+
+// ログエントリを追加
+function addLogEntry(message, type = 'processing') {
+    const processingLog = document.getElementById('processingLog');
+    const timestamp = new Date().toLocaleTimeString('ja-JP');
+    const logEntry = document.createElement('div');
+    logEntry.className = `log-entry ${type}`;
+    logEntry.textContent = `[${timestamp}] ${message}`;
+    
+    processingLog.appendChild(logEntry);
+    processingLog.scrollTop = processingLog.scrollHeight;
+}
+
+// URL情報抽出（シミュレーション）
+async function extractInfoFromUrl(url, urlType) {
+    return new Promise((resolve) => {
+        setTimeout(() => {
+            // デモ用のシミュレーションデータ生成
+            const facilityCount = Math.floor(Math.random() * 5) + 1; // 1-5件
+            const results = [];
+            
+            for (let i = 0; i < facilityCount; i++) {
+                const sampleNames = [
+                    '札幌中央介護ホーム',
+                    '北区やまざくらホーム', 
+                    '手稲みどりの風',
+                    '豊平グループホーム',
+                    '白石ケアセンター',
+                    '厚別リハビリホーム',
+                    '西区つばさの家',
+                    '東区あおぞらホーム'
+                ];
+                
+                const sampleAreas = ['中央区', '北区', '東区', '白石区', '豊平区', '南区', '西区', '厚別区', '手稲区', '清田区'];
+                const sampleAvailability = ['空きあり', '空き僅か', '満室', '要確認'];
+                const sampleFees = ['12万円〜18万円', '10万円〜15万円', '15万円〜22万円', '8万円〜12万円'];
+                
+                results.push({
+                    name: sampleNames[Math.floor(Math.random() * sampleNames.length)] + (facilityCount > 1 ? ` ${i + 1}` : ''),
+                    address: `札幌市${sampleAreas[Math.floor(Math.random() * sampleAreas.length)]}○○${Math.floor(Math.random() * 30) + 1}丁目${Math.floor(Math.random() * 20) + 1}-${Math.floor(Math.random() * 30) + 1}`,
+                    area: sampleAreas[Math.floor(Math.random() * sampleAreas.length)],
+                    phone: `011-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
+                    websiteUrl: url,
+                    careLevel: ['要介護1', '要介護2', '要介護3', '要介護4', '要介護5'],
+                    monthlyFee: sampleFees[Math.floor(Math.random() * sampleFees.length)],
+                    medicalCare: '胃ろう、たん吸引、インスリン注射対応',
+                    features: '24時間看護師常駐、リハビリ充実',
+                    availability: sampleAvailability[Math.floor(Math.random() * sampleAvailability.length)],
+                    reliabilityLevel: 'medium',
+                    lastConfirmed: new Date().toISOString().split('T')[0],
+                    confirmationMethod: 'web',
+                    notes: `${urlType.name}から自動取得`,
+                    reviews: `[自動取得 ${new Date().toLocaleDateString('ja-JP')}] WEBサイトから取得した情報です。`,
+                    sourceUrl: url,
+                    sourceType: urlType
+                });
+            }
+            
+            resolve(results);
+        }, Math.random() * 2000 + 1000); // 1-3秒のランダム遅延
+    });
+}
+
+// 一括処理結果表示
+function displayBulkResults() {
+    const resultsSection = document.getElementById('bulkResultsSection');
+    const resultsSummary = document.getElementById('resultsSummary');
+    
+    // サマリー統計を生成
+    const totalCount = bulkProcessResults.length;
+    const areaStats = {};
+    const availabilityStats = {};
+    
+    bulkProcessResults.forEach(facility => {
+        // エリア統計
+        areaStats[facility.area] = (areaStats[facility.area] || 0) + 1;
+        
+        // 空き状況統計
+        availabilityStats[facility.availability] = (availabilityStats[facility.availability] || 0) + 1;
+    });
+    
+    const topAreas = Object.entries(areaStats)
+        .sort(([,a], [,b]) => b - a)
+        .slice(0, 3)
+        .map(([area, count]) => `${area}: ${count}件`)
+        .join(', ');
+    
+    resultsSummary.innerHTML = `
+        <div class="summary-stats">
+            <div class="stat-item">
+                <span class="stat-number">${totalCount}</span>
+                <span class="stat-label">総取得件数</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">${Object.keys(areaStats).length}</span>
+                <span class="stat-label">対象エリア数</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number">${availabilityStats['空きあり'] || 0}</span>
+                <span class="stat-label">空きあり施設</span>
+            </div>
+        </div>
+        <p><strong>主要エリア:</strong> ${topAreas}</p>
+        <p><strong>取得日時:</strong> ${new Date().toLocaleString('ja-JP')}</p>
+    `;
+    
+    resultsSection.style.display = 'block';
+}
+
+// 全件プレビュー表示
+function previewAllResults() {
+    const previewContainer = document.getElementById('resultsPreview');
+    
+    if (bulkProcessResults.length === 0) {
+        previewContainer.innerHTML = '<p>プレビューする結果がありません。</p>';
+        return;
+    }
+    
+    let html = '';
+    bulkProcessResults.forEach((facility, index) => {
+        html += `
+            <div class="preview-facility">
+                <h4>[${index + 1}] ${escapeHtml(facility.name)}</h4>
+                <div class="preview-details">
+                    <div class="preview-detail">
+                        <span class="preview-label">住所:</span>
+                        <span class="preview-value">${escapeHtml(facility.address)}</span>
+                    </div>
+                    <div class="preview-detail">
+                        <span class="preview-label">エリア:</span>
+                        <span class="preview-value">${escapeHtml(facility.area)}</span>
+                    </div>
+                    <div class="preview-detail">
+                        <span class="preview-label">空き状況:</span>
+                        <span class="preview-value">${escapeHtml(facility.availability)}</span>
+                    </div>
+                    <div class="preview-detail">
+                        <span class="preview-label">月額料金:</span>
+                        <span class="preview-value">${escapeHtml(facility.monthlyFee)}</span>
+                    </div>
+                    <div class="preview-detail">
+                        <span class="preview-label">電話番号:</span>
+                        <span class="preview-value">${escapeHtml(facility.phone)}</span>
+                    </div>
+                    <div class="preview-detail">
+                        <span class="preview-label">取得元:</span>
+                        <span class="preview-value">${escapeHtml(facility.sourceType.name)}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    previewContainer.innerHTML = html;
+}
+
+// 全件保存
+function saveAllResults() {
+    if (bulkProcessResults.length === 0) {
+        showMessage('保存する結果がありません。', 'error');
+        return;
+    }
+    
+    const confirmed = confirm(`${bulkProcessResults.length}件の施設情報を一括保存しますか？`);
+    if (!confirmed) return;
+    
+    // 既存の施設データに追加
+    bulkProcessResults.forEach(facilityData => {
+        const newFacility = {
+            id: Date.now() + Math.random(), // 一意なID生成
+            name: facilityData.name,
+            address: facilityData.address,
+            area: facilityData.area,
+            phone: facilityData.phone,
+            websiteUrl: facilityData.websiteUrl,
+            careLevel: facilityData.careLevel,
+            monthlyFee: facilityData.monthlyFee,
+            medicalCare: facilityData.medicalCare,
+            features: facilityData.features,
+            availability: facilityData.availability,
+            notes: facilityData.notes,
+            reviews: facilityData.reviews,
+            reliabilityLevel: facilityData.reliabilityLevel,
+            lastConfirmed: facilityData.lastConfirmed,
+            confirmationMethod: facilityData.confirmationMethod,
+            createdAt: new Date().toISOString(),
+            realtimeInfo: null,
+            lastUpdated: null
+        };
+        
+        facilities.push(newFacility);
+    });
+    
+    // ローカルストレージに保存
+    saveFacilities();
+    
+    // 施設一覧ページに切り替えて表示更新
+    switchPage('list');
+    displayFacilities();
+    
+    showMessage(`${bulkProcessResults.length}件の施設情報を保存しました。`, 'success');
+    
+    // 結果をクリア
+    bulkProcessResults = [];
+}
+
+// 選択保存（今後の拡張用）
+function selectiveSave() {
+    showMessage('選択保存機能は今後実装予定です。現在は全件保存をご利用ください。', 'info');
+}
+
+// CSVインポート機能
+function showImportDialog() {
+    document.getElementById('csvImportDialog').style.display = 'flex';
+}
+
+function closeImportDialog() {
+    document.getElementById('csvImportDialog').style.display = 'none';
+    document.getElementById('csvFileInput').value = '';
+    document.getElementById('importStatus').textContent = '';
+    document.getElementById('importStatus').className = 'import-status';
+}
+
+function importCSV() {
+    const fileInput = document.getElementById('csvFileInput');
+    const statusDiv = document.getElementById('importStatus');
+    
+    if (!fileInput.files || fileInput.files.length === 0) {
+        statusDiv.textContent = 'CSVファイルを選択してください。';
+        statusDiv.className = 'import-status error';
+        return;
+    }
+    
+    const file = fileInput.files[0];
+    
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+        statusDiv.textContent = 'CSVファイルを選択してください。';
+        statusDiv.className = 'import-status error';
+        return;
+    }
+    
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        try {
+            let csvText = e.target.result;
+            
+            // BOM (Byte Order Mark) を除去
+            if (csvText.charCodeAt(0) === 0xFEFF) {
+                csvText = csvText.slice(1);
+            }
+            
+            console.log('CSV content preview:', csvText.substring(0, 500));
+            console.log('CSV lines count:', csvText.split('\n').length);
+            
+            const importedFacilities = parseCSV(csvText);
+            processFacilitiesImport(importedFacilities, statusDiv);
+            
+        } catch (error) {
+            console.error('CSV解析エラー:', error);
+            console.log('UTF-8での読み込みに失敗。Shift_JISで再試行...');
+            
+            // Shift_JISで再試行
+            const readerSJIS = new FileReader();
+            readerSJIS.onload = function(e2) {
+                try {
+                    let csvText = e2.target.result;
+                    
+                    // BOM除去
+                    if (csvText.charCodeAt(0) === 0xFEFF) {
+                        csvText = csvText.slice(1);
+                    }
+                    
+                    console.log('Shift_JIS CSV content preview:', csvText.substring(0, 500));
+                    
+                    const importedFacilities = parseCSV(csvText);
+                    
+                    if (importedFacilities.length === 0) {
+                        statusDiv.textContent = 'インポートできる施設データが見つかりませんでした。';
+                        statusDiv.className = 'import-status error';
+                        return;
+                    }
+                    
+                    // 同じ処理を実行
+                    processFacilitiesImport(importedFacilities, statusDiv);
+                    
+                } catch (error2) {
+                    console.error('Shift_JIS解析エラー:', error2);
+                    statusDiv.textContent = 'CSVファイルの解析に失敗しました。正しい形式のファイルか確認してください。UTF-8またはShift_JIS形式で保存してください。';
+                    statusDiv.className = 'import-status error';
+                }
+            };
+            
+            statusDiv.textContent = 'Shift_JISエンコーディングで再試行中...';
+            readerSJIS.readAsText(file, 'Shift_JIS');
+        }
+    };
+    
+    reader.onerror = function() {
+        statusDiv.textContent = 'ファイルの読み込みに失敗しました。';
+        statusDiv.className = 'import-status error';
+    };
+    
+    statusDiv.textContent = 'ファイルを読み込み中...';
+    statusDiv.className = 'import-status';
+    
+    // 最初にUTF-8で試し、失敗したらShift_JISで再試行
+    reader.readAsText(file, 'UTF-8');
+}
+
+function processFacilitiesImport(importedFacilities, statusDiv) {
+    if (importedFacilities.length === 0) {
+        statusDiv.textContent = 'インポートできる施設データが見つかりませんでした。';
+        statusDiv.className = 'import-status error';
+        return;
+    }
+    
+    // 重複チェック（施設名ベース）
+    const existingNames = facilities.map(f => f.name.toLowerCase());
+    const newFacilities = importedFacilities.filter(
+        imported => !existingNames.includes(imported.name.toLowerCase())
+    );
+    
+    if (newFacilities.length === 0) {
+        statusDiv.textContent = `${importedFacilities.length}件のデータがありましたが、すべて既存のデータと重複しています。`;
+        statusDiv.className = 'import-status error';
+        return;
+    }
+    
+    // 施設データに追加
+    newFacilities.forEach(facilityData => {
+        const newFacility = {
+            id: Date.now() + Math.random(),
+            name: facilityData.name,
+            address: facilityData.address,
+            area: facilityData.area,
+            phone: facilityData.phone,
+            websiteUrl: facilityData.websiteUrl,
+            careLevel: facilityData.careLevel ? facilityData.careLevel.split(',') : [],
+            monthlyFee: facilityData.monthlyFee,
+            medicalCare: facilityData.medicalCare,
+            features: facilityData.features,
+            availability: facilityData.availability,
+            notes: facilityData.notes,
+            reviews: facilityData.reviews,
+            reliabilityLevel: facilityData.reliabilityLevel || 'medium',
+            lastConfirmed: facilityData.lastConfirmed,
+            confirmationMethod: facilityData.confirmationMethod || 'web',
+            createdAt: new Date().toISOString(),
+            realtimeInfo: null,
+            lastUpdated: null
+        };
+        
+        facilities.push(newFacility);
+    });
+    
+    // データを保存
+    saveFacilities();
+    
+    // 表示を更新
+    console.log('About to call displayFacilities after import');
+    displayFacilities();
+    
+    // 強制的に施設一覧タブに切り替え
+    showTab('facilities');
+    
+    // 成功メッセージ
+    const duplicateCount = importedFacilities.length - newFacilities.length;
+    let message = `${newFacilities.length}件の施設データをインポートしました。`;
+    if (duplicateCount > 0) {
+        message += ` (${duplicateCount}件は重複のため除外)`;
+    }
+    
+    statusDiv.textContent = message;
+    statusDiv.className = 'import-status success';
+    
+    showMessage(message, 'success');
+    
+    // 3秒後にダイアログを閉じる
+    setTimeout(() => {
+        closeImportDialog();
+    }, 3000);
+}
+
+function parseCSV(csvText) {
+    // BOM文字を除去（\uFEFF）
+    let cleanText = csvText;
+    if (cleanText.charCodeAt(0) === 0xFEFF) {
+        cleanText = cleanText.slice(1);
+    }
+    // さらに文字列の先頭からBOM文字を除去
+    cleanText = cleanText.replace(/^\uFEFF/, '');
+    
+    // 改行コードを統一（\r\n → \n）
+    const normalizedText = cleanText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = normalizedText.split('\n').filter(line => line.trim());
+    
+    console.log('Parsed lines count:', lines.length);
+    console.log('First few lines:', lines.slice(0, 3));
+    
+    if (lines.length < 2) {
+        throw new Error(`CSVファイルが空か、ヘッダー行のみです。行数: ${lines.length}`);
+    }
+    
+    const headers = parseCSVLine(lines[0]);
+    console.log('Headers:', headers);
+    console.log('Header mapping check:');
+    headers.forEach((header, index) => {
+        console.log(`  [${index}] "${header}" (length: ${header.length}, charCodes: ${header.split('').map(c => c.charCodeAt(0)).join(',')})`);
+    });
+    
+    const facilities = [];
+    
+    for (let i = 1; i < lines.length; i++) {
+        try {
+            const line = lines[i];
+            if (!line || line.trim() === '') {
+                continue; // 空行はスキップ
+            }
+            
+            const values = parseCSVLine(line);
+            console.log(`Row ${i}:`, values.slice(0, 3)); // 最初の3列だけログ出力
+            
+            if (values.length < 3) { // 最低限の列数チェック
+                console.warn(`Row ${i} skipped: insufficient columns (${values.length})`);
+                continue;
+            }
+            
+            const facility = {};
+            
+            // ヘッダーと値をマッピング
+            headers.forEach((header, index) => {
+                let value = values[index] || '';
+                
+                // クォートを除去
+                if (value.startsWith('"') && value.endsWith('"')) {
+                    value = value.slice(1, -1);
+                }
+                
+                // ヘッダー名をプロパティ名にマッピング
+                console.log(`Mapping header "${header}" to value "${value}"`);
+                switch (header) {
+                    case '施設名':
+                        facility.name = value;
+                        console.log('Mapped name:', value);
+                        break;
+                    case 'エリア':
+                        facility.area = value;
+                        break;
+                    case '住所':
+                        facility.address = value;
+                        break;
+                    case '電話番号':
+                        facility.phone = value;
+                        break;
+                    case 'ホームページURL':
+                        facility.websiteUrl = value;
+                        break;
+                    case '空き状況':
+                        facility.availability = value;
+                        break;
+                    case '信頼性レベル':
+                        facility.reliabilityLevel = value;
+                        break;
+                    case '月額料金':
+                        facility.monthlyFee = value;
+                        break;
+                    case '受入可能要介護度':
+                        facility.careLevel = value;
+                        break;
+                    case '医療ケア':
+                        facility.medicalCare = value;
+                        break;
+                    case '施設特徴':
+                        facility.features = value;
+                        break;
+                    case '特記事項':
+                        facility.notes = value;
+                        break;
+                    case '口コミ情報':
+                        facility.reviews = value;
+                        break;
+                    case '最終確認日':
+                        facility.lastConfirmed = value;
+                        break;
+                    case '確認方法':
+                        facility.confirmationMethod = value;
+                        break;
+                }
+            });
+            
+            // 必須項目チェック
+            console.log('Final facility object:', facility);
+            if (facility.name && facility.name.trim()) {
+                // IDを生成
+                facility.id = Date.now() + Math.random();
+                facilities.push(facility);
+                console.log(`Added facility: ${facility.name}`);
+            } else {
+                console.warn(`Row ${i} skipped: no valid name found. Facility object:`, facility);
+            }
+            
+        } catch (error) {
+            console.warn(`CSV行 ${i + 1} の解析をスキップ:`, error);
+        }
+    }
+    
+    return facilities;
+}
+
+function parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    
+    // 行の前後の空白を削除
+    line = line.trim();
+    
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+            if (inQuotes && line[i + 1] === '"') {
+                current += '"';
+                i++; // 次の文字をスキップ
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    
+    result.push(current.trim());
+    
+    // 各フィールドのクォートとBOM文字を除去
+    return result.map(field => {
+        // BOM文字を除去
+        field = field.replace(/^\uFEFF/, '');
+        
+        if (field.startsWith('"') && field.endsWith('"')) {
+            return field.slice(1, -1);
+        }
+        return field;
+    });
+}
+
+// 初回利用時のメッセージ
+if (localStorage.getItem('careFacilities') === null || facilities.length === 0) {
+    console.log('No facilities found in storage. Please add facilities or import CSV data.');
+}
+
+// 最終一括更新日時を表示
+function updateLastBulkUpdateDisplay() {
+    const lastUpdateTime = localStorage.getItem('lastBulkUpdateTime');
+    const displayEl = document.getElementById('lastBulkUpdateTime');
+    
+    if (lastUpdateTime && displayEl) {
+        displayEl.textContent = `最終一括更新: ${lastUpdateTime}`;
+    } else if (displayEl) {
+        displayEl.textContent = '一括更新未実行';
+    }
+}
+
+// ページ読み込み時に最終更新時刻を表示
+document.addEventListener('DOMContentLoaded', function() {
+    updateLastBulkUpdateDisplay();
+    // 初期表示は検索ページなので、一覧ページの表示は必要なし
+});
+
+// 新しい施設一覧ページ用の表示関数（簡易表示）
+function displayOverviewFacilities(filteredFacilities = null) {
+    const container = document.getElementById('overviewFacilitiesContainer');
+    // 非表示施設を除外
+    const visibleFacilities = (filteredFacilities || facilities).filter(facility => !facility.isHidden);
+    const facilitiesToShow = visibleFacilities;
+    
+    if (facilitiesToShow.length === 0) {
+        container.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">登録された施設はありません。</p>';
+        return;
+    }
+    
+    let html = '<div class="simple-facility-list">';
+    facilitiesToShow.forEach(facility => {
+        // 最終更新日の表示用フォーマット
+        const lastUpdateDate = facility.lastUpdated 
+            ? new Date(facility.lastUpdated).toLocaleDateString('ja-JP')
+            : facility.createdAt 
+                ? new Date(facility.createdAt).toLocaleDateString('ja-JP')
+                : '未設定';
+        
+        html += `
+            <div class="simple-facility-card">
+                <div class="simple-facility-header">
+                    <div class="simple-facility-name clickable-name" onclick="editFacility(${facility.id})">${escapeHtml(facility.name)}</div>
+                </div>
+                <div class="simple-facility-info">
+                    <span class="simple-info">🏢 ${escapeHtml(facility.facilityType || '未設定')}</span>
+                    <span class="simple-info">🏘️ ${escapeHtml(facility.area || '未設定')}</span>
+                    <span class="simple-info">📅 ${lastUpdateDate}</span>
+                </div>
+            </div>
+        `;
+    });
+    html += '</div>';
+    
+    container.innerHTML = html;
+}
+
+// 一覧ページの検索機能（施設名のみで検索）
+function performOverviewSearch() {
+    const searchTerm = document.getElementById('overviewSearchInput').value.toLowerCase().trim();
+    
+    console.log('Overview search term:', searchTerm);
+    console.log('Total facilities:', facilities.length);
+    
+    if (!searchTerm) {
+        displayOverviewFacilities();
+        return;
+    }
+    
+    // 施設名のみで検索
+    const filtered = facilities.filter(facility => {
+        return facility.name && facility.name.toLowerCase().includes(searchTerm);
+    });
+    
+    console.log('Filtered results:', filtered.length);
+    displayOverviewFacilities(filtered);
+}
+
+// 一覧ページの検索クリア
+function clearOverviewSearch() {
+    document.getElementById('overviewSearchInput').value = '';
+    displayOverviewFacilities();
+}
+
+// すべての施設を削除する関数
+function deleteAllFacilities() {
+    const facilityCount = facilities.length;
+    
+    if (facilityCount === 0) {
+        showMessage('削除する施設がありません。', 'info');
+        return;
+    }
+    
+    const confirmMessage = `本当にすべての施設（${facilityCount}件）を削除しますか？\n\nこの操作は取り消すことができません。`;
+    
+    if (confirm(confirmMessage)) {
+        // 全施設を削除
+        facilities.length = 0;
+        
+        // ローカルストレージを更新
+        saveFacilities();
+        
+        // 画面を更新
+        displayFacilities();
+        displayOverviewFacilities();
+        
+        // 成功メッセージを表示
+        showMessage(`${facilityCount}件の施設をすべて削除しました。`, 'success');
+        
+        console.log('All facilities deleted successfully');
+    }
+}
+
+// 施設編集機能
+function editFacility(facilityId) {
+    const facility = facilities.find(f => f.id === facilityId);
+    if (!facility) {
+        showMessage('編集対象の施設が見つかりません。', 'error');
+        return;
+    }
+    
+    // 編集モードフラグを設定
+    window.editingFacilityId = facilityId;
+    
+    // 施設追加ページに移動
+    switchPageManual('add');
+    
+    // フォームに既存データを入力
+    populateFormForEdit(facility);
+    
+    // ページタイトルを変更
+    const addPageTitle = document.querySelector('#addPage h2');
+    if (addPageTitle) {
+        addPageTitle.textContent = '✏️ 施設情報編集';
+    }
+    
+    // ボタンテキストを変更
+    const addButton = document.querySelector('#addPage button[type="submit"]');
+    if (addButton) {
+        addButton.textContent = '✏️ 施設情報を更新';
+    }
+    
+    // 削除ボタンを表示
+    const deleteBtn = document.getElementById('deleteFacilityBtn');
+    if (deleteBtn) {
+        deleteBtn.style.display = 'inline-block';
+    }
+}
+
+// 施設検索タブから施設シートに移行する関数
+function navigateToFacilitySheet(facilityId) {
+    // 編集モードフラグを設定
+    window.editingFacilityId = facilityId;
+    
+    // 施設追加ページに移動
+    switchPageManual('add');
+    
+    // 対象の施設情報を取得
+    const facility = facilities.find(f => f.id === facilityId);
+    if (!facility) {
+        console.error(`Facility with ID ${facilityId} not found`);
+        return;
+    }
+    
+    // フォームに既存データを入力
+    populateFormForEdit(facility);
+    
+    // ページタイトルを変更
+    const addPageTitle = document.querySelector('#addPage h2');
+    if (addPageTitle) {
+        addPageTitle.textContent = '📋 施設情報シート';
+    }
+    
+    // ボタンテキストを変更
+    const addButton = document.querySelector('#addPage button[type="submit"]');
+    if (addButton) {
+        addButton.textContent = '✏️ 施設情報を更新';
+    }
+    
+    // 削除ボタンを表示
+    const deleteBtn = document.getElementById('deleteFacilityBtn');
+    if (deleteBtn) {
+        deleteBtn.style.display = 'inline-block';
+    }
+}
+
+// フォームに編集データを入力
+function populateFormForEdit(facility) {
+    document.getElementById('facilityName').value = facility.name || '';
+    document.getElementById('facilityType').value = facility.facilityType || '';
+    document.getElementById('address').value = facility.address || '';
+    document.getElementById('area').value = facility.area || '';
+    document.getElementById('phone').value = facility.phone || '';
+    document.getElementById('websiteUrl').value = facility.websiteUrl || '';
+    
+    // URLボタンの状態を更新
+    const openWebsiteBtn = document.getElementById('openWebsiteBtn');
+    if (openWebsiteBtn) {
+        openWebsiteBtn.disabled = !(facility.websiteUrl && facility.websiteUrl.trim());
+    }
+    document.getElementById('availability').value = facility.availability || '';
+    document.getElementById('monthlyFee').value = facility.monthlyFee || '';
+    document.getElementById('medicalCare').value = facility.medicalCare || '';
+    document.getElementById('features').value = facility.features || '';
+    document.getElementById('notes').value = facility.notes || '';
+    document.getElementById('reliabilityLevel').value = facility.reliabilityLevel || '';
+    document.getElementById('lastConfirmed').value = facility.lastConfirmed || '';
+    document.getElementById('confirmationMethod').value = facility.confirmationMethod || '';
+    document.getElementById('reviews').value = facility.reviews || '';
+    
+    // 要介護度チェックボックスの設定
+    const careLevelCheckboxes = [
+        'careSupport1', 'careSupport2', 'careLevel1', 'careLevel2', 
+        'careLevel3', 'careLevel4', 'careLevel5'
+    ];
+    careLevelCheckboxes.forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox && facility.careLevel) {
+            checkbox.checked = facility.careLevel.includes(checkbox.value);
+        }
+    });
+    
+    // サービスの選択（3つのプルダウンに設定）
+    if (facility.services) {
+        document.getElementById('services1').value = facility.services[0] || '';
+        document.getElementById('services2').value = facility.services[1] || '';
+        document.getElementById('services3').value = facility.services[2] || '';
+    }
+    
+    // チェックボックス項目の設定
+    const checkboxes = [
+        'nurseAvailable', 'supportRequired', 'independent', 'publicAssistance',
+        'noFamily', 'endOfLife', 'coupleRoom', 'selfCooking', 'twoMeals', 'kitchen'
+    ];
+    checkboxes.forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox && facility.additionalOptions) {
+            checkbox.checked = facility.additionalOptions.includes(checkbox.value);
+        }
+    });
+    
+    // 非表示チェックボックスの設定
+    const isHiddenCheckbox = document.getElementById('isHidden');
+    if (isHiddenCheckbox) {
+        isHiddenCheckbox.checked = facility.isHidden || false;
+    }
+}
+
+// 施設情報更新
+function updateFacility() {
+    if (!window.editingFacilityId) {
+        showMessage('編集対象が不明です。', 'error');
+        return;
+    }
+    
+    const facilityIndex = facilities.findIndex(f => f.id === window.editingFacilityId);
+    if (facilityIndex === -1) {
+        showMessage('編集対象の施設が見つかりません。', 'error');
+        return;
+    }
+    
+    // フォームデータを取得
+    const updatedData = {
+        name: document.getElementById('facilityName').value.trim(),
+        facilityType: document.getElementById('facilityType').value,
+        address: document.getElementById('address').value.trim(),
+        area: document.getElementById('area').value,
+        phone: document.getElementById('phone').value.trim(),
+        websiteUrl: document.getElementById('websiteUrl').value.trim(),
+        availability: document.getElementById('availability').value,
+        monthlyFee: document.getElementById('monthlyFee').value.trim(),
+        medicalCare: document.getElementById('medicalCare').value.trim(),
+        features: document.getElementById('features').value.trim(),
+        notes: document.getElementById('notes').value.trim(),
+        reliabilityLevel: document.getElementById('reliabilityLevel').value,
+        lastConfirmed: document.getElementById('lastConfirmed').value,
+        confirmationMethod: document.getElementById('confirmationMethod').value,
+        careLevel: (() => {
+            const careLevel = [];
+            const careLevelCheckboxes = [
+                'careSupport1', 'careSupport2', 'careLevel1', 'careLevel2', 
+                'careLevel3', 'careLevel4', 'careLevel5'
+            ];
+            careLevelCheckboxes.forEach(id => {
+                const checkbox = document.getElementById(id);
+                if (checkbox && checkbox.checked) {
+                    careLevel.push(checkbox.value);
+                }
+            });
+            return careLevel;
+        })(),
+        services: [
+            document.getElementById('services1').value,
+            document.getElementById('services2').value,
+            document.getElementById('services3').value
+        ].filter(service => service !== ''),
+        additionalOptions: (() => {
+            const options = [];
+            const checkboxes = [
+                'nurseAvailable', 'supportRequired', 'independent', 'publicAssistance',
+                'noFamily', 'endOfLife', 'coupleRoom', 'selfCooking', 'twoMeals', 'kitchen'
+            ];
+            checkboxes.forEach(id => {
+                const checkbox = document.getElementById(id);
+                if (checkbox && checkbox.checked) {
+                    options.push(checkbox.value);
+                }
+            });
+            return options;
+        })(),
+        isHidden: document.getElementById('isHidden').checked
+    };
+    
+    // バリデーション
+    if (!updatedData.name) {
+        showMessage('施設名を入力してください。', 'error');
+        return;
+    }
+    
+    // データを更新（最終更新日時も追加）
+    facilities[facilityIndex] = { ...facilities[facilityIndex], ...updatedData, lastUpdated: new Date().toISOString() };
+    
+    // データを保存
+    saveFacilities();
+    
+    // 画面を更新
+    displayFacilities();
+    displayOverviewFacilities();
+    
+    // 編集モードをクリア
+    window.editingFacilityId = null;
+    
+    // フォームをクリア
+    clearAddForm();
+    
+    // タイトルとボタンを元に戻す
+    resetAddPageToDefault();
+    
+    // 施設一覧ページに戻る
+    switchPageManual('overview');
+    
+    showMessage('施設情報を更新しました。', 'success');
+}
+
+// 編集モードから施設を削除
+function deleteFacilityFromEditMode() {
+    if (!window.editingFacilityId) {
+        showMessage('削除対象が不明です。', 'error');
+        return;
+    }
+    
+    const facility = facilities.find(f => f.id === window.editingFacilityId);
+    if (!facility) {
+        showMessage('削除対象の施設が見つかりません。', 'error');
+        return;
+    }
+    
+    if (confirm(`「${facility.name}」を削除してもよろしいですか？\nこの操作は取り消せません。`)) {
+        // 施設を削除
+        const index = facilities.findIndex(f => f.id === window.editingFacilityId);
+        if (index !== -1) {
+            facilities.splice(index, 1);
+            saveFacilities();
+            
+            // 画面を更新
+            displayFacilities();
+            displayOverviewFacilities();
+            
+            // 編集モードをクリア
+            window.editingFacilityId = null;
+            
+            // フォームをクリア
+            clearAddForm();
+            
+            // 追加ページを初期状態に戻す
+            resetAddPageToDefault();
+            
+            // 施設一覧ページに戻る
+            switchPageManual('overview');
+            
+            showMessage('施設を削除しました。', 'success');
+        }
+    }
+}
+
+// フォームをクリアする関数
+function clearAddForm() {
+    document.getElementById('facilityName').value = '';
+    document.getElementById('facilityType').value = '';
+    document.getElementById('address').value = '';
+    document.getElementById('area').value = '';
+    document.getElementById('phone').value = '';
+    document.getElementById('websiteUrl').value = '';
+    
+    // URLボタンを無効化
+    const openWebsiteBtn = document.getElementById('openWebsiteBtn');
+    if (openWebsiteBtn) {
+        openWebsiteBtn.disabled = true;
+    }
+    document.getElementById('monthlyFee').value = '';
+    document.getElementById('medicalCare').value = '';
+    document.getElementById('features').value = '';
+    document.getElementById('availability').value = '';
+    document.getElementById('notes').value = '';
+    document.getElementById('reliabilityLevel').value = '';
+    document.getElementById('lastConfirmed').value = new Date().toISOString().split('T')[0];
+    document.getElementById('confirmationMethod').value = '';
+    document.getElementById('reviews').value = '';
+    
+    // 要介護度をクリア
+    const careLevel = document.getElementById('careLevel');
+    if (careLevel) {
+        Array.from(careLevel.options).forEach(option => {
+            option.selected = false;
+        });
+    }
+    
+    // サービスをクリア
+    document.getElementById('services1').value = '';
+    document.getElementById('services2').value = '';
+    document.getElementById('services3').value = '';
+    
+    // チェックボックスをクリア
+    const checkboxes = [
+        'nurseAvailable', 'supportRequired', 'independent', 'publicAssistance',
+        'noFamily', 'endOfLife', 'coupleRoom', 'selfCooking', 'twoMeals', 'kitchen', 'isHidden'
+    ];
+    checkboxes.forEach(id => {
+        const checkbox = document.getElementById(id);
+        if (checkbox) {
+            checkbox.checked = false;
+        }
+    });
+}
+
+// 札幌中央区自動検索機能
+async function searchSapporoChuo() {
+    if (!confirm('札幌中央区の介護施設を自動検索しますか？')) {
+        return;
+    }
+    
+    const button = document.querySelector('.auto-search-btn');
+    const originalText = button.textContent;
+    
+    try {
+        button.textContent = '🔄 検索中...';
+        button.disabled = true;
+        
+        const response = await fetch('http://localhost:5000/api/search-sapporo-chuo', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({})
+        });
+        
+        const data = await response.json();
+        console.log('取得データ:', data);
+        
+        if (data.success && data.facilities) {
+            // 既存リストに追加
+            data.facilities.forEach(newFacility => {
+                newFacility.id = Date.now() + Math.random();
+                facilities.push(newFacility);
+            });
+            
+            // 保存と表示更新
+            saveFacilities();
+            displayFacilities();
+            
+            alert(`${data.facilities.length}件の新しい施設を追加しました！`);
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+        alert('エラーが発生しました: ' + error.message);
+    } finally {
+        button.textContent = originalText;
+        button.disabled = false;
+    }
+}
+
+// サービス選択時の処理
+function handleServiceChange(serviceNumber) {
+    const selectedValue = document.getElementById(`services${serviceNumber}`).value;
+    
+    // 「サービスなし」が選ばれた場合
+    if (selectedValue === 'サービスなし') {
+        if (serviceNumber === 1) {
+            // 提供サービス1で「サービスなし」→ 2、3も自動的に「サービスなし」
+            document.getElementById('services2').value = 'サービスなし';
+            document.getElementById('services3').value = 'サービスなし';
+        } else if (serviceNumber === 2) {
+            // 提供サービス2で「サービスなし」→ 3だけ自動的に「サービスなし」
+            document.getElementById('services3').value = 'サービスなし';
+        }
+        // 提供サービス3で「サービスなし」→ 1、2はそのまま（何もしない）
+    }
+    // 「サービスなし」以外が選ばれた場合
+    else if (selectedValue !== '' && selectedValue !== 'サービスなし') {
+        // 他の「サービスなし」を空にする
+        for (let i = 1; i <= 3; i++) {
+            if (i !== serviceNumber) {
+                const otherSelect = document.getElementById(`services${i}`);
+                if (otherSelect.value === 'サービスなし') {
+                    otherSelect.value = '';
+                }
+            }
+        }
+    }
+}
+
+// 追加ページを初期状態に戻す
+function resetAddPageToDefault() {
+    const addPageTitle = document.querySelector('#addPage h2');
+    if (addPageTitle) {
+        addPageTitle.textContent = '➕ 新しい施設を追加';
+    }
+    
+    const addButton = document.querySelector('#addPage button[type="submit"]');
+    if (addButton) {
+        addButton.textContent = '施設を追加・更新';
+    }
+    
+    // 削除ボタンを非表示
+    const deleteBtn = document.getElementById('deleteFacilityBtn');
+    if (deleteBtn) {
+        deleteBtn.style.display = 'none';
+    }
+}
+
+// Enterキーでの検索対応と初期化
+document.addEventListener('DOMContentLoaded', function() {
+    const overviewSearchInput = document.getElementById('overviewSearchInput');
+    if (overviewSearchInput) {
+        overviewSearchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                performOverviewSearch();
+            }
+        });
+    }
+    
+    // ページ読み込み時に施設データを読み込み・表示
+    loadFacilities();
+    displayFacilities();
+    displayOverviewFacilities();
+    
+    console.log('施設管理システム初期化完了:', facilities.length, '件の施設データを読み込みました');
+    
+    // URL入力フィールドの変更を監視してボタンの有効/無効を切り替え
+    const websiteUrlInput = document.getElementById('websiteUrl');
+    const openWebsiteBtn = document.getElementById('openWebsiteBtn');
+    
+    if (websiteUrlInput && openWebsiteBtn) {
+        // 初期状態をチェック
+        const initialUrl = websiteUrlInput.value.trim();
+        openWebsiteBtn.disabled = !initialUrl;
+        
+        // 入力時の処理
+        websiteUrlInput.addEventListener('input', function() {
+            const url = this.value.trim();
+            openWebsiteBtn.disabled = !url;
+        });
+        
+        // フォーカスアウト時にも再チェック
+        websiteUrlInput.addEventListener('blur', function() {
+            const url = this.value.trim();
+            openWebsiteBtn.disabled = !url;
+        });
+    }
+});
+
+// ホームページURLを開く機能
+function openWebsite() {
+    const url = document.getElementById('websiteUrl').value.trim();
+    if (url) {
+        window.open(url, '_blank');
+    }
+}
+
+// 非表示施設管理機能
+function showHiddenFacilities() {
+    const hiddenFacilities = facilities.filter(facility => facility.isHidden);
+    
+    if (hiddenFacilities.length === 0) {
+        alert('現在、非表示に設定された施設はありません。');
+        return;
+    }
+    
+    // 非表示施設選択ダイアログを表示
+    showHiddenFacilitiesDialog(hiddenFacilities);
+}
+
+// 非表示施設選択ダイアログを表示
+function showHiddenFacilitiesDialog(hiddenFacilities) {
+    // 既存のダイアログがあれば削除
+    const existingDialog = document.getElementById('hiddenFacilitiesDialog');
+    if (existingDialog) {
+        existingDialog.remove();
+    }
+    
+    // ダイアログHTMLを作成
+    const dialogHTML = `
+        <div id="hiddenFacilitiesDialog" style="
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            width: 100vw; 
+            height: 100vh; 
+            background-color: rgba(0,0,0,0.5); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            z-index: 10000;
+        ">
+            <div style="
+                background: white; 
+                border-radius: 12px; 
+                padding: 30px; 
+                max-width: 600px; 
+                max-height: 80vh; 
+                overflow-y: auto;
+                box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            ">
+                <h2 style="margin-top: 0; color: #e53e3e; text-align: center;">
+                    👁️ 非表示施設管理 (${hiddenFacilities.length}件)
+                </h2>
+                <p style="text-align: center; color: #666; margin-bottom: 20px;">
+                    編集したい施設をクリックして、非表示チェックを外して更新してください
+                </p>
+                <div style="space-y: 10px;">
+                    ${hiddenFacilities.map(facility => `
+                        <div style="
+                            border: 2px solid #fed7d7; 
+                            border-radius: 8px; 
+                            padding: 15px; 
+                            margin-bottom: 10px; 
+                            cursor: pointer; 
+                            transition: all 0.2s;
+                            background-color: #fff5f5;
+                        " 
+                        onclick="editHiddenFacility(${facility.id})"
+                        onmouseover="this.style.borderColor='#e53e3e'; this.style.backgroundColor='#fef5e7';"
+                        onmouseout="this.style.borderColor='#fed7d7'; this.style.backgroundColor='#fff5f5';">
+                            <div style="font-weight: 600; font-size: 16px; color: #2d3748; margin-bottom: 5px;">
+                                🏥 ${facility.name}
+                            </div>
+                            <div style="font-size: 14px; color: #666;">
+                                📍 ${facility.area || '未設定'} | 🏢 ${facility.facilityType || '未設定'}
+                            </div>
+                            <div style="font-size: 12px; color: #9ca3af; margin-top: 5px;">
+                                💰 ${facility.monthlyFee || '料金未設定'} | 📅 ${facility.lastConfirmed || '確認日未設定'}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button onclick="closeHiddenFacilitiesDialog()" style="
+                        background-color: #e53e3e; 
+                        color: white; 
+                        border: none; 
+                        padding: 12px 24px; 
+                        border-radius: 6px; 
+                        cursor: pointer; 
+                        font-size: 14px; 
+                        font-weight: 600;
+                        margin-right: 10px;
+                    ">✖️ 閉じる</button>
+                    <button onclick="unhideAllFacilitiesFromDialog()" style="
+                        background-color: #38a169; 
+                        color: white; 
+                        border: none; 
+                        padding: 12px 24px; 
+                        border-radius: 6px; 
+                        cursor: pointer; 
+                        font-size: 14px; 
+                        font-weight: 600;
+                    ">👁️ 全て表示に戻す</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // ダイアログをDOMに追加
+    document.body.insertAdjacentHTML('beforeend', dialogHTML);
+}
+
+// 非表示施設を編集モードで開く
+function editHiddenFacility(facilityId) {
+    // ダイアログを閉じる
+    closeHiddenFacilitiesDialog();
+    
+    // 施設を編集モードで開く
+    editFacility(facilityId);
+}
+
+// ダイアログを閉じる
+function closeHiddenFacilitiesDialog() {
+    const dialog = document.getElementById('hiddenFacilitiesDialog');
+    if (dialog) {
+        dialog.remove();
+    }
+}
+
+// ダイアログから全ての非表示施設を表示に戻す
+function unhideAllFacilitiesFromDialog() {
+    if (confirm('全ての非表示施設を表示に戻しますか？')) {
+        unhideAllFacilities();
+        closeHiddenFacilitiesDialog();
+    }
+}
+
+// 全ての非表示施設を表示に戻す（開発者ツール用）
+function unhideAllFacilities() {
+    const hiddenCount = facilities.filter(facility => facility.isHidden).length;
+    
+    if (hiddenCount === 0) {
+        console.log('非表示の施設はありません。');
+        return;
+    }
+    
+    facilities.forEach(facility => {
+        if (facility.isHidden) {
+            facility.isHidden = false;
+        }
+    });
+    
+    saveFacilities();
+    displayFacilities();
+    displayOverviewFacilities();
+    
+    console.log(`${hiddenCount}件の施設を表示に戻しました。`);
+    alert(`${hiddenCount}件の施設を表示に戻しました。`);
+}
+
+// 特定の施設を名前で検索して表示に戻す（開発者ツール用）
+function unhideFacilityByName(facilityName) {
+    const facility = facilities.find(f => f.name.includes(facilityName) && f.isHidden);
+    
+    if (!facility) {
+        console.log(`"${facilityName}"に一致する非表示施設が見つかりません。`);
+        return;
+    }
+    
+    facility.isHidden = false;
+    saveFacilities();
+    displayFacilities();
+    displayOverviewFacilities();
+    
+    console.log(`"${facility.name}"を表示に戻しました。`);
+    alert(`"${facility.name}"を表示に戻しました。`);
+}
+
+// 非表示施設一覧をコンソールに表示（開発者ツール用）
+function listHiddenFacilities() {
+    const hiddenFacilities = facilities.filter(facility => facility.isHidden);
+    
+    if (hiddenFacilities.length === 0) {
+        console.log('非表示の施設はありません。');
+        return;
+    }
+    
+    console.log(`非表示施設一覧 (${hiddenFacilities.length}件):`);
+    hiddenFacilities.forEach((facility, index) => {
+        console.log(`${index + 1}. ${facility.name} (${facility.area}, ${facility.facilityType})`);
+    });
+}
+
